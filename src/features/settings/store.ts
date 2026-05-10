@@ -29,7 +29,7 @@ export const useSettingsStore = create<SettingsState>()(
       ttsRate: 1.0,
       ttsVolume: 1.0,
       beepVolume: 0.5,
-      theme: 'auto',
+      theme: 'dark',
       setBeepsEnabled: (v) => set({ beepsEnabled: v }),
       setTtsEnabled: (v) => set({ ttsEnabled: v }),
       setTtsVoice: (v) => set({ ttsVoice: v }),
@@ -38,6 +38,6 @@ export const useSettingsStore = create<SettingsState>()(
       setBeepVolume: (v) => set({ beepVolume: v }),
       setTheme: (t) => set({ theme: t }),
     }),
-    { name: 'reppr:settings:v1' },
+    { name: 'reppr:settings:v2' },
   ),
 );
