@@ -1,50 +1,53 @@
 import type { AnimationRenderer } from '../types';
-import { StickFigure } from './StickFigure';
+import { StickFigure, type JointPose } from './StickFigure';
 import {
   BRIDGE_DOWN,
+  BRIDGE_MID,
   BRIDGE_UP,
   CRUNCH_DOWN,
+  CRUNCH_MID,
   CRUNCH_UP,
   CURL_DOWN,
+  CURL_MID,
   CURL_UP,
   JJ_OPEN,
   LUNGE_DOWN,
+  LUNGE_MID,
   MC_TUCK_LEFT,
   MC_TUCK_RIGHT,
   PLANK,
   PRESS_DOWN,
+  PRESS_MID,
   PRESS_UP,
   PUSHUP_DOWN,
+  PUSHUP_MID,
   PUSHUP_UP,
   SQUAT_DOWN,
+  SQUAT_MID,
   STAND,
 } from './poses';
 
-function make(poseA: typeof STAND, poseB: typeof STAND, defaultLoopMs?: number): AnimationRenderer {
+/** Build a renderer from a sequence of key poses (looped, evenly spaced). */
+function seq(poses: JointPose[], defaultLoopMs?: number): AnimationRenderer {
   return function Renderer(props) {
     return (
-      <StickFigure
-        {...props}
-        poseA={poseA}
-        poseB={poseB}
-        loopMs={props.loopMs ?? defaultLoopMs}
-      />
+      <StickFigure {...props} poses={poses} loopMs={props.loopMs ?? defaultLoopMs} />
     );
   };
 }
 
 export const SVG_RENDERERS: Record<string, AnimationRenderer> = {
-  squat: make(STAND, SQUAT_DOWN),
-  lunge: make(STAND, LUNGE_DOWN),
-  pushup: make(PUSHUP_UP, PUSHUP_DOWN),
-  plank: make(PLANK, PLANK),
-  'glute-bridge': make(BRIDGE_DOWN, BRIDGE_UP),
-  'jumping-jack': make(STAND, JJ_OPEN, 700),
-  'mountain-climber': make(MC_TUCK_LEFT, MC_TUCK_RIGHT, 600),
-  crunch: make(CRUNCH_DOWN, CRUNCH_UP),
-  situp: make(CRUNCH_DOWN, CRUNCH_UP),
-  'dumbbell-curl': make(CURL_DOWN, CURL_UP),
-  'dumbbell-press': make(PRESS_DOWN, PRESS_UP),
+  squat: seq([STAND, SQUAT_MID, SQUAT_DOWN, SQUAT_MID]),
+  lunge: seq([STAND, LUNGE_MID, LUNGE_DOWN, LUNGE_MID]),
+  pushup: seq([PUSHUP_UP, PUSHUP_MID, PUSHUP_DOWN, PUSHUP_MID]),
+  plank: seq([PLANK]),
+  'glute-bridge': seq([BRIDGE_DOWN, BRIDGE_MID, BRIDGE_UP, BRIDGE_MID]),
+  'jumping-jack': seq([STAND, JJ_OPEN], 700),
+  'mountain-climber': seq([MC_TUCK_LEFT, MC_TUCK_RIGHT], 600),
+  crunch: seq([CRUNCH_DOWN, CRUNCH_MID, CRUNCH_UP, CRUNCH_MID]),
+  situp: seq([CRUNCH_DOWN, CRUNCH_MID, CRUNCH_UP, CRUNCH_MID]),
+  'dumbbell-curl': seq([CURL_DOWN, CURL_MID, CURL_UP, CURL_MID]),
+  'dumbbell-press': seq([PRESS_DOWN, PRESS_MID, PRESS_UP, PRESS_MID]),
 };
 
 /** Mapping from animationKeys without dedicated SVGs to closest available renderer. */

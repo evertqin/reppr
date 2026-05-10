@@ -23,46 +23,76 @@ export interface JointPose {
   rfoot: [number, number];
 }
 
+const POSE_KEYS: (keyof JointPose)[] = [
+  'head',
+  'hip',
+  'shoulder',
+  'lhand',
+  'rhand',
+  'lelbow',
+  'relbow',
+  'lknee',
+  'rknee',
+  'lfoot',
+  'rfoot',
+];
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
 function lerpPose(a: JointPose, b: JointPose, t: number): JointPose {
-  const k = (key: keyof JointPose): [number, number] => [
-    lerp(a[key][0], b[key][0], t),
-    lerp(a[key][1], b[key][1], t),
-  ];
-  return {
-    head: k('head'),
-    hip: k('hip'),
-    shoulder: k('shoulder'),
-    lhand: k('lhand'),
-    rhand: k('rhand'),
-    lelbow: k('lelbow'),
-    relbow: k('relbow'),
-    lknee: k('lknee'),
-    rknee: k('rknee'),
-    lfoot: k('lfoot'),
-    rfoot: k('rfoot'),
-  };
+  const out = {} as JointPose;
+  for (const key of POSE_KEYS) {
+    out[key] = [lerp(a[key][0], b[key][0], t), lerp(a[key][1], b[key][1], t)];
+  }
+  return out;
+}
+
+/** Smoothstep easing — no jolt at the ends of each segment. */
+function ease(t: number): number {
+  const c = Math.max(0, Math.min(1, t));
+  return c * c * (3 - 2 * c);
+}
+
+/**
+ * Sample a multi-keyframe pose timeline at normalized time `t` in [0, 1].
+ * Frames are evenly spaced; the timeline is treated as cyclic so we wrap
+ * the last frame back to the first when looping.
+ */
+function samplePoseSequence(frames: JointPose[], t: number): JointPose {
+  if (frames.length === 0) {
+    throw new Error('samplePoseSequence: at least one frame required');
+  }
+  if (frames.length === 1) return frames[0];
+  const cyclic = [...frames, frames[0]];
+  const segCount = cyclic.length - 1;
+  const scaled = Math.max(0, Math.min(0.9999999, t)) * segCount;
+  const i = Math.floor(scaled);
+  const local = scaled - i;
+  return lerpPose(cyclic[i], cyclic[i + 1], ease(local));
 }
 
 export interface StickFigureProps extends AnimationRendererProps {
-  poseA: JointPose;
-  poseB: JointPose;
+  /** Two-pose shorthand (kept for back-compat). */
+  poseA?: JointPose;
+  poseB?: JointPose;
+  /** Multi-keyframe timeline (preferred). Played evenly spaced across one cycle. */
+  poses?: JointPose[];
   /** Cycle length in ms when looping. Default 1500ms. */
   loopMs?: number;
 }
 
 /**
- * Renders a stick figure interpolated between two key poses.
- * - When `loop` is true, animates A→B→A continuously.
- * - When `repProgress` is provided (0..1), maps to the same triangle wave for one rep.
- * - Honors prefers-reduced-motion by freezing on poseA.
+ * Renders a stick figure interpolated across a sequence of key poses.
+ * - When `loop` is true, animates through the timeline cyclically.
+ * - When `repProgress` is provided (0..1), maps to one full pass of the timeline.
+ * - Honors prefers-reduced-motion by freezing on the first frame.
  */
 export function StickFigure({
   poseA,
   poseB,
+  poses,
   repProgress,
   loop,
   scale = 1,
@@ -74,14 +104,20 @@ export function StickFigure({
   const frameRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
 
+  const timeline: JointPose[] = useMemo(() => {
+    if (poses && poses.length > 0) return poses;
+    if (poseA && poseB) return [poseA, poseB];
+    if (poseA) return [poseA];
+    if (poseB) return [poseB];
+    throw new Error('StickFigure: provide either `poses` or both `poseA` and `poseB`.');
+  }, [poses, poseA, poseB]);
+
   useEffect(() => {
     if (reduced || !loop) return;
     const tick = (now: number) => {
       if (startRef.current == null) startRef.current = now;
       const elapsed = (now - startRef.current) % loopMs;
-      const phase = elapsed / loopMs; // 0..1
-      const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-      setT(tri);
+      setT(elapsed / loopMs);
       frameRef.current = requestAnimationFrame(tick);
     };
     frameRef.current = requestAnimationFrame(tick);
@@ -91,17 +127,14 @@ export function StickFigure({
     };
   }, [loop, loopMs, reduced]);
 
-  const interp = useMemo(() => {
+  const phase = useMemo(() => {
     if (reduced) return 0;
     if (loop) return t;
-    if (typeof repProgress === 'number') {
-      const r = Math.max(0, Math.min(1, repProgress));
-      return r < 0.5 ? r * 2 : 2 - r * 2;
-    }
+    if (typeof repProgress === 'number') return Math.max(0, Math.min(1, repProgress));
     return 0;
   }, [reduced, loop, t, repProgress]);
 
-  const pose = lerpPose(poseA, poseB, interp);
+  const pose = samplePoseSequence(timeline, phase);
   const stroke = 'currentColor';
   const sw = 6;
   const headR = 14;
@@ -117,15 +150,67 @@ export function StickFigure({
       aria-label={ariaLabel}
       style={{ color: 'var(--accent)', display: 'block' }}
     >
-      <circle cx={pose.head[0]} cy={pose.head[1]} r={headR} stroke={stroke} strokeWidth={sw} fill="none" />
-      <line x1={pose.head[0]} y1={pose.head[1] + headR} x2={pose.shoulder[0]} y2={pose.shoulder[1]} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
-      <line x1={pose.shoulder[0]} y1={pose.shoulder[1]} x2={pose.hip[0]} y2={pose.hip[1]} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+      <line x1={0} y1={h - 8} x2={w} y2={h - 8} stroke={stroke} strokeWidth={2} opacity={0.25} />
+      <circle
+        cx={pose.head[0]}
+        cy={pose.head[1]}
+        r={headR}
+        stroke={stroke}
+        strokeWidth={sw}
+        fill="none"
+      />
+      <line
+        x1={pose.head[0]}
+        y1={pose.head[1] + headR}
+        x2={pose.shoulder[0]}
+        y2={pose.shoulder[1]}
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinecap="round"
+      />
+      <line
+        x1={pose.shoulder[0]}
+        y1={pose.shoulder[1]}
+        x2={pose.hip[0]}
+        y2={pose.hip[1]}
+        stroke={stroke}
+        strokeWidth={sw}
+        strokeLinecap="round"
+      />
       {/* arms */}
-      <polyline points={`${pose.shoulder[0]},${pose.shoulder[1]} ${pose.lelbow[0]},${pose.lelbow[1]} ${pose.lhand[0]},${pose.lhand[1]}`} stroke={stroke} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points={`${pose.shoulder[0]},${pose.shoulder[1]} ${pose.relbow[0]},${pose.relbow[1]} ${pose.rhand[0]},${pose.rhand[1]}`} stroke={stroke} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={`${pose.shoulder[0]},${pose.shoulder[1]} ${pose.lelbow[0]},${pose.lelbow[1]} ${pose.lhand[0]},${pose.lhand[1]}`}
+        stroke={stroke}
+        strokeWidth={sw}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={`${pose.shoulder[0]},${pose.shoulder[1]} ${pose.relbow[0]},${pose.relbow[1]} ${pose.rhand[0]},${pose.rhand[1]}`}
+        stroke={stroke}
+        strokeWidth={sw}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
       {/* legs */}
-      <polyline points={`${pose.hip[0]},${pose.hip[1]} ${pose.lknee[0]},${pose.lknee[1]} ${pose.lfoot[0]},${pose.lfoot[1]}`} stroke={stroke} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points={`${pose.hip[0]},${pose.hip[1]} ${pose.rknee[0]},${pose.rknee[1]} ${pose.rfoot[0]},${pose.rfoot[1]}`} stroke={stroke} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={`${pose.hip[0]},${pose.hip[1]} ${pose.lknee[0]},${pose.lknee[1]} ${pose.lfoot[0]},${pose.lfoot[1]}`}
+        stroke={stroke}
+        strokeWidth={sw}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={`${pose.hip[0]},${pose.hip[1]} ${pose.rknee[0]},${pose.rknee[1]} ${pose.rfoot[0]},${pose.rfoot[1]}`}
+        stroke={stroke}
+        strokeWidth={sw}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

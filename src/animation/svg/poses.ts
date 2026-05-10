@@ -195,3 +195,98 @@ export const PRESS_DOWN: JointPose = {
   relbow: [130, 110],
   rhand: [125, 95],
 };
+
+// ----- Intermediate keyframes for richer motion -----
+
+/** Halfway down a squat. */
+export const SQUAT_MID: JointPose = {
+  head: [100, 70],
+  shoulder: [100, 110],
+  hip: [100, 183],
+  lelbow: [74, 148],
+  lhand: [62, 180],
+  relbow: [126, 148],
+  rhand: [138, 180],
+  lknee: [78, 228],
+  lfoot: [75, 273],
+  rknee: [122, 228],
+  rfoot: [125, 273],
+};
+
+/** Halfway up from a pushup. */
+export const PUSHUP_MID: JointPose = {
+  head: [55, 218],
+  shoulder: [80, 215],
+  hip: [140, 230],
+  lelbow: [76, 238],
+  lhand: [80, 265],
+  relbow: [76, 238],
+  rhand: [80, 265],
+  lknee: [180, 250],
+  lfoot: [195, 270],
+  rknee: [180, 250],
+  rfoot: [195, 270],
+};
+
+/** Half curl. */
+export const CURL_MID: JointPose = {
+  ...STAND,
+  lelbow: [78, 130],
+  lhand: [76, 130],
+  relbow: [122, 130],
+  rhand: [124, 130],
+};
+
+/** Press at the rack/shoulder transition. */
+export const PRESS_MID: JointPose = {
+  ...STAND,
+  lelbow: [76, 90],
+  lhand: [82, 60],
+  relbow: [124, 90],
+  rhand: [118, 60],
+};
+
+/** Lunge transition (mid step-back). */
+export const LUNGE_MID: JointPose = {
+  head: [100, 60],
+  shoulder: [100, 100],
+  hip: [100, 180],
+  lelbow: [78, 140],
+  lhand: [70, 175],
+  relbow: [122, 140],
+  rhand: [130, 175],
+  lknee: [78, 230],
+  lfoot: [62, 270],
+  rknee: [128, 232],
+  rfoot: [142, 272],
+};
+
+/** Glute-bridge transition. */
+export const BRIDGE_MID: JointPose = {
+  head: [40, 230],
+  shoulder: [70, 230],
+  hip: [120, 222],
+  lelbow: [60, 245],
+  lhand: [55, 270],
+  relbow: [80, 245],
+  rhand: [85, 270],
+  lknee: [155, 232],
+  lfoot: [170, 270],
+  rknee: [155, 232],
+  rfoot: [170, 270],
+};
+
+/** Crunch transition. */
+export const CRUNCH_MID: JointPose = {
+  head: [70, 190],
+  shoulder: [95, 210],
+  hip: [140, 235],
+  lelbow: [72, 184],
+  lhand: [65, 158],
+  relbow: [72, 184],
+  rhand: [65, 158],
+  lknee: [165, 195],
+  lfoot: [180, 245],
+  rknee: [165, 195],
+  rfoot: [180, 245],
+};
