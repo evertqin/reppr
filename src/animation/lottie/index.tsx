@@ -1,8 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import type { LottieRefCurrentProps } from 'lottie-react';
-import type { AnimationRendererProps } from '../types';
-
-/**
+import type { AnimationRendererProps } from '../types';/**
  * Eagerly discover bundled Lottie JSON sources keyed by animationKey
  * (filename without `.json`). Drop a `<animationKey>.json` file into
  * this folder to register a renderer for it.
@@ -50,6 +48,7 @@ export function LottieRenderer({
   ariaLabel,
 }: LottieRendererProps) {
   const ref = useRef<LottieRefCurrentProps>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Compute speed = nativeDurationMs / desiredDurationMs.
   const speed = useMemo(() => {
@@ -76,8 +75,25 @@ export function LottieRenderer({
     ref.current?.setSpeed(speed);
   }, [speed]);
 
+  // Warn (in dev) if the Lottie loaded but produced no visible paths — this is
+  // almost always a malformed file (e.g. a shape group missing its required `tr`).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const id = setTimeout(() => {
+      const root = wrapperRef.current?.querySelector('svg');
+      if (root && root.querySelectorAll('path').length === 0) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[lottie] "${ariaLabel}" rendered with 0 paths. The JSON is likely malformed (missing \`tr\` transform in a shape group, or unsupported features).`,
+        );
+      }
+    }, 500);
+    return () => clearTimeout(id);
+  }, [ariaLabel, data]);
+
   return (
     <div
+      ref={wrapperRef}
       role="img"
       aria-label={ariaLabel}
       style={{ width, height, color: 'var(--accent)' }}
