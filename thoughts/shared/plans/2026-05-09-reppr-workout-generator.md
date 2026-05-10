@@ -43,6 +43,10 @@ A developer (or power user) can:
 - Enrichment files are a stable, documented format. Anyone (LLM or human) can produce one with a spreadsheet or text editor.
 - Web Speech API (`speechSynthesis`) is built into browsers — no dep needed; gate behind a feature toggle since Safari iOS quirks exist.
 
+### Lessons Learned (post-launch)
+- **Lottie renderer was tried and removed.** We added a hybrid path (Lottie preferred → SVG stick figure fallback) plus the `lottie-react` dependency. In practice the bottleneck is **sourcing**: high-quality, license-clean, exercise-specific Lotties are scarce — most "free" assets on LottieFiles are personal-use only, are barbell-centric (don't match bodyweight exercises in our seed), or are malformed (LLM-generated JSONs without the required `tr` transform on shape groups, which silently render zero paths). The runtime cost is also non-trivial: ~317 KB code-split chunk per session that loads a Lottie. **Recommendation: stay on the multi-keyframe SVG stick figures.** They render every exercise consistently, are deterministic, weigh nothing, and look fine after the keyframe-with-easing upgrade. Revisit Lottie only if a vetted, license-clean fitness pack becomes available — and even then, gate it on a per-exercise opt-in to avoid loading the runtime for plans that have no Lotties.
+- The animation renderer interface (`AnimationRenderer` + registry resolution order) was the right abstraction; removing Lottie was a one-file change.
+
 ## What We're NOT Doing
 
 - No backend, no user accounts, no cloud sync.
