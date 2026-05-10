@@ -184,6 +184,27 @@ export function ConfigPage() {
         </div>
       </div>
 
+      {draft.equipment.some((e) => e !== 'none') && (
+        <div className="field">
+          <label htmlFor="bw-ratio">
+            Bodyweight share:{' '}
+            <strong>{Math.round((draft.bodyweightRatio ?? 0.5) * 100)}%</strong>{' '}
+            <span className="muted">
+              ({Math.round((1 - (draft.bodyweightRatio ?? 0.5)) * 100)}% equipped)
+            </span>
+          </label>
+          <input
+            id="bw-ratio"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={draft.bodyweightRatio ?? 0.5}
+            onChange={(e) => setDraft({ bodyweightRatio: Number(e.target.value) })}
+          />
+        </div>
+      )}
+
       <div className="row">
         <button type="button" className="primary" onClick={onGenerate}>
           Generate plan

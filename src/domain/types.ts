@@ -93,6 +93,12 @@ export interface ConfigInput {
   equipment: Equipment[];
   style: Style;
   difficulty: Difficulty;
+  /**
+   * Target share of *main-block* exercises that should be bodyweight-only
+   * (equipment === ['none']), expressed 0..1. Ignored when no other equipment
+   * is selected. Defaults to 0.5 when omitted.
+   */
+  bodyweightRatio?: number;
 }
 
 export interface WorkoutPlan {

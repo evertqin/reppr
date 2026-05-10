@@ -67,6 +67,49 @@ describe('generator: equipment honored', () => {
   });
 });
 
+describe('generator: bodyweight ratio', () => {
+  const equip = ['none', 'dumbbells', 'bench', 'pullupBar'] as const;
+
+  function shareBw(plan: ReturnType<typeof generatePlan>): number {
+    const main = plan.blocks.find((b) => b.kind === 'main')!;
+    const total = main.items.length;
+    if (total === 0) return 0;
+    const bw = main.items.filter((it) => {
+      const ex = EXERCISE_BY_ID.get(it.exerciseId)!;
+      return ex.equipment.length === 1 && ex.equipment[0] === 'none';
+    }).length;
+    return bw / total;
+  }
+
+  it('ratio 0 prefers equipped exercises', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        equipment: [...equip],
+        style: 'circuit',
+        durationMin: 30,
+        bodyweightRatio: 0,
+      }),
+      LIB,
+      { seed: 11 },
+    );
+    expect(shareBw(plan)).toBeLessThan(0.34);
+  });
+
+  it('ratio 1 prefers bodyweight exercises', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        equipment: [...equip],
+        style: 'circuit',
+        durationMin: 30,
+        bodyweightRatio: 1,
+      }),
+      LIB,
+      { seed: 12 },
+    );
+    expect(shareBw(plan)).toBeGreaterThan(0.66);
+  });
+});
+
 describe('generator: muscle targeting', () => {
   it('chest-focused plan has majority chest hits in main block', () => {
     const config = defaultConfig({

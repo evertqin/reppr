@@ -9,6 +9,7 @@ const DEFAULT_CONFIG: ConfigInput = {
   equipment: ['none'],
   style: 'circuit',
   difficulty: 'intermediate',
+  bodyweightRatio: 0.5,
 };
 
 interface ConfigState {

@@ -258,6 +258,60 @@ function selectMain(
   return avoidConsecutiveSameMuscle(rng, picked.slice(0, count));
 }
 
+function isBodyweight(ex: Exercise): boolean {
+  return ex.equipment.length === 1 && ex.equipment[0] === 'none';
+}
+
+/**
+ * Pick `count` main exercises while honoring `config.bodyweightRatio` against
+ * the pool's bodyweight vs. equipped split. Falls back gracefully when one
+ * side of the split is empty (e.g. equipment === ['none']) or when the user
+ * does not request a specific share.
+ */
+function selectWithBodyweightRatio(
+  rng: Rng,
+  pool: Exercise[],
+  config: ConfigInput,
+  count: number,
+): Exercise[] {
+  const bw = pool.filter(isBodyweight);
+  const equipped = pool.filter((e) => !isBodyweight(e));
+  // No equipped tools selected at all, or one side is empty -> nothing to balance.
+  const onlyBodyweight = config.equipment.length === 1 && config.equipment[0] === 'none';
+  if (onlyBodyweight || bw.length === 0 || equipped.length === 0) {
+    return selectMain(rng, pool, config.bodyParts, count);
+  }
+  const ratio = clamp(config.bodyweightRatio ?? 0.5, 0, 1);
+  let bwCount = Math.round(count * ratio);
+  let eqCount = count - bwCount;
+
+  // Re-balance if either side cannot supply its share with distinct picks.
+  if (bwCount > bw.length) {
+    eqCount += bwCount - bw.length;
+    bwCount = bw.length;
+  }
+  if (eqCount > equipped.length) {
+    bwCount += eqCount - equipped.length;
+    eqCount = equipped.length;
+  }
+  bwCount = Math.min(bwCount, count);
+  eqCount = count - bwCount;
+
+  const bwPicks = bwCount > 0 ? selectMain(rng, bw, config.bodyParts, bwCount) : [];
+  const eqPicks = eqCount > 0 ? selectMain(rng, equipped, config.bodyParts, eqCount) : [];
+
+  // Interleave so the order isn't "all bodyweight then all equipped".
+  const merged: Exercise[] = [];
+  let i = 0;
+  let j = 0;
+  while (merged.length < count) {
+    if (i < bwPicks.length) merged.push(bwPicks[i++]);
+    if (merged.length < count && j < eqPicks.length) merged.push(eqPicks[j++]);
+    if (i >= bwPicks.length && j >= eqPicks.length) break;
+  }
+  return avoidConsecutiveSameMuscle(rng, merged.slice(0, count));
+}
+
 interface GenerateOptions {
   seed?: number;
   rng?: Rng;
@@ -271,6 +325,7 @@ function configHash(c: ConfigInput): number {
     e: [...c.equipment].sort(),
     s: c.style,
     df: c.difficulty,
+    bw: c.bodyweightRatio ?? 0.5,
   });
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -397,7 +452,12 @@ export function generatePlan(
       scheme: buildScheme(rng, template, config.goal, config.difficulty, ex, setsPerItem),
     }));
 
-  const mainExercises = selectMain(rng, mainPool, config.bodyParts, exerciseCount);
+  const mainExercises = selectWithBodyweightRatio(
+    rng,
+    mainPool,
+    config,
+    exerciseCount,
+  );
   let mainItems = buildItems(mainExercises);
 
   let mainBlock: PlanBlock = {
