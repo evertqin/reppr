@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ExerciseAnimation, hasRenderer, getRenderer } from '../src/animation/registry';
+import { ExerciseAnimation, hasRenderer } from '../src/animation/registry';
 import { SVG_RENDERERS } from '../src/animation/svg/renderers';
 
 describe('animation registry', () => {
@@ -18,8 +18,10 @@ describe('animation registry', () => {
   });
 
   it('all registered SVG renderers produce non-empty SVG at progress 0/0.5/1', () => {
-    for (const key of Object.keys(SVG_RENDERERS)) {
-      const Renderer = getRenderer(key);
+    // Iterate the SVG renderer map directly. The high-level registry may prefer a
+    // Lottie file when one exists for the same key, which is an SSR <div> wrapper
+    // around a lazy-loaded component — exercised separately in the registry test.
+    for (const [key, Renderer] of Object.entries(SVG_RENDERERS)) {
       for (const p of [0, 0.5, 1]) {
         const html = renderToStaticMarkup(
           <Renderer animationKey={key} repProgress={p} ariaLabel={key} />,

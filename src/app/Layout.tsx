@@ -19,6 +19,7 @@ export function Layout() {
         <NavLink to="/" end>
           Build
         </NavLink>
+        <NavLink to="/library">Library</NavLink>
         <NavLink to="/history">History</NavLink>
         <NavLink to="/settings">Settings</NavLink>
         <span className="spacer" />

@@ -286,3 +286,112 @@ button.big {
   }
   .player-howto-panel { max-height: none; }
 }
+
+/* ----- Library ----- */
+.library {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.library-tree {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+.library-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.library-groups { list-style: none; padding: 0; margin: 0; }
+.library-group { margin-bottom: 4px; }
+.library-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.library-group-header:hover { background: var(--bg); }
+.library-caret { width: 12px; color: var(--fg-dim); }
+.library-items {
+  list-style: none;
+  padding: 2px 0 6px 22px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.library-item {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--fg-dim);
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.library-item:hover { color: var(--fg); background: var(--bg); }
+.library-item.selected {
+  color: white;
+  background: var(--accent-strong);
+}
+.library-detail {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-height: 400px;
+}
+.library-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.library-anim {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.library-info h2 {
+  margin: 16px 0 6px;
+  font-size: 1.05rem;
+  color: var(--fg-dim);
+}
+.library-row { margin: 4px 0; }
+.library-row-label { font-weight: 600; color: var(--fg-dim); margin-right: 4px; }
+.chip-tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  text-transform: capitalize;
+}
+@media (max-width: 760px) {
+  .library {
+    grid-template-columns: 1fr;
+  }
+  .library-tree { position: static; max-height: none; }
+  .library-detail-grid { grid-template-columns: 1fr; }
+}

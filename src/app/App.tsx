@@ -3,6 +3,7 @@ import { ConfigPage } from '../features/config/ConfigPage';
 import { PreviewPage } from '../features/preview/PreviewPage';
 import { PlayerPage } from '../features/player/PlayerPage';
 import { HistoryPage } from '../features/history/HistoryPage';
+import { LibraryPage } from '../features/library/LibraryPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { Layout } from './Layout';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -41,6 +42,14 @@ export function App() {
             element={
               <ErrorBoundary>
                 <HistoryPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="library"
+            element={
+              <ErrorBoundary>
+                <LibraryPage />
               </ErrorBoundary>
             }
           />
