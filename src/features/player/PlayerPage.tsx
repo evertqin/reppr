@@ -45,39 +45,46 @@ export function PlayerPage() {
   const speakerRef = useRef(createSpeaker());
 
   // Speak / beep on transitions and when timers near zero.
-  const lastIndexRef = useRef(state.stepIndex);
+  const lastIndexRef = useRef<number | null>(null);
   const lastBeepSecRef = useRef<number | null>(null);
   useEffect(() => {
-    if (state.stepIndex !== lastIndexRef.current) {
-      lastIndexRef.current = state.stepIndex;
-      lastBeepSecRef.current = null;
-      const cur = state.steps[state.stepIndex];
-      if (cur && ttsEnabled) {
-        if (cur.kind === 'work') {
-          const ex2 = byId.get(cur.exerciseId);
-          if (ex2) {
-            const detail =
-              cur.reps != null
-                ? `${cur.reps} reps`
-                : `${cur.durationSec ?? 0} seconds`;
-            speakerRef.current.cancel();
-            speakerRef.current.speak(`${ex2.name}, ${detail}`, {
-              voice: ttsVoice,
-              rate: ttsRate,
-              volume: ttsVolume,
-            });
-          }
-        } else {
-          speakerRef.current.cancel();
-          speakerRef.current.speak(`Rest ${cur.durationSec ?? 0} seconds`, {
-            voice: ttsVoice,
-            rate: ttsRate,
-            volume: ttsVolume,
-          });
-        }
+    // Announce when stepIndex changes OR when entering work/rest for the first time
+    // (the first step keeps stepIndex at 0 across idle → countdown → work).
+    const isPlaying = state.status === 'work' || state.status === 'rest';
+    if (!isPlaying) return;
+    if (state.stepIndex === lastIndexRef.current) return;
+    lastIndexRef.current = state.stepIndex;
+    lastBeepSecRef.current = null;
+    const cur = state.steps[state.stepIndex];
+    if (!cur || !ttsEnabled) return;
+    if (cur.kind === 'work') {
+      const ex2 = byId.get(cur.exerciseId);
+      if (ex2) {
+        const detail =
+          cur.reps != null ? `${cur.reps} reps` : `${cur.durationSec ?? 0} seconds`;
+        speakerRef.current.cancel();
+        speakerRef.current.speak(`${ex2.name}, ${detail}`, {
+          voice: ttsVoice,
+          rate: ttsRate,
+          volume: ttsVolume,
+        });
       }
+    } else {
+      speakerRef.current.cancel();
+      speakerRef.current.speak(`Rest ${cur.durationSec ?? 0} seconds`, {
+        voice: ttsVoice,
+        rate: ttsRate,
+        volume: ttsVolume,
+      });
     }
-  }, [state.stepIndex, state.steps, byId, ttsEnabled, ttsRate, ttsVoice, ttsVolume]);
+  }, [state.stepIndex, state.status, state.steps, byId, ttsEnabled, ttsRate, ttsVoice, ttsVolume]);
+
+  // Reset announcement tracker when the workout is restarted.
+  useEffect(() => {
+    if (state.status === 'idle' || state.status === 'finished') {
+      lastIndexRef.current = null;
+    }
+  }, [state.status]);
 
   // Countdown / final-3-seconds beeps.
   useEffect(() => {
