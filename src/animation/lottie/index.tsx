@@ -60,6 +60,18 @@ export function LottieRenderer({
     return nativeMs > 0 ? nativeMs / loopMs : 1;
   }, [data, loopMs]);
 
+  // Size the wrapper to the Lottie's native aspect ratio so the figure fills
+  // the available space (no large blank bars when the asset is square).
+  // The reference height matches the SVG stick figure's 300px so layouts line up.
+  const { width, height } = useMemo(() => {
+    const meta = (data ?? {}) as { w?: number; h?: number };
+    const nativeW = typeof meta.w === 'number' ? meta.w : 200;
+    const nativeH = typeof meta.h === 'number' ? meta.h : 300;
+    const refH = 300;
+    const aspect = nativeW / nativeH;
+    return { width: refH * aspect * scale, height: refH * scale };
+  }, [data, scale]);
+
   useEffect(() => {
     ref.current?.setSpeed(speed);
   }, [speed]);
@@ -68,7 +80,7 @@ export function LottieRenderer({
     <div
       role="img"
       aria-label={ariaLabel}
-      style={{ width: 200 * scale, height: 300 * scale, color: 'var(--accent)' }}
+      style={{ width, height, color: 'var(--accent)' }}
     >
       <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
         <LottiePlayer
