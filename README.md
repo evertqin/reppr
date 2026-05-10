@@ -4,6 +4,8 @@ Client-side workout plan generator and follow-along player. React + Vite + TypeS
 
 **The running app is fully offline and never calls an LLM.** LLMs are used only by optional dev-time CLIs that produce committed artifacts (data files or generator source) reviewed by a human.
 
+**Live: https://evertqin.github.io/reppr/**
+
 ## Quick start
 
 ```sh
@@ -12,13 +14,49 @@ npm run dev        # http://localhost:5173
 npm run build      # production bundle in dist/ (PWA + service worker)
 npm test           # vitest
 npm run lint
+npm run check      # lint + test + build (the same gates CI runs)
 ```
+
+## Deploying changes
+
+CI deploys to GitHub Pages on every push to `main` via `.github/workflows/pages.yml`. Two ways to ship:
+
+```sh
+# 1. One-shot script: runs gates, commits everything pending, pushes, watches the run.
+npm run deploy
+
+# 2. With a custom commit message
+npm run deploy -- "feat: tweak hiit defaults"
+
+# 3. Skip local checks (CI will still enforce them)
+npm run deploy -- --skip-check
+
+# 4. Push and don't block on the workflow
+npm run deploy -- --no-watch
+```
+
+Or just `git push` — the workflow runs the same checks and publishes.
+
+Other deploy helpers:
+
+```sh
+npm run deploy:status   # latest workflow runs
+npm run deploy:watch    # interactive run watcher (uses gh)
+```
+
+The deploy script requires the [`gh`](https://cli.github.com/) CLI for watching runs (already authed if you use `gh auth login`). Push works without it.
+
+### Hosting notes
+
+- The app uses a hash router (`#/...`), so deep links survive Pages refreshes.
+- `vite.config.ts` reads `VITE_BASE` (defaults to `/reppr/`). For a custom domain or root deploy, set `VITE_BASE=/`.
+- The PWA manifest is scoped to the same base. To install on Xbox, Android, or desktop: open the URL in Edge/Chrome → menu → **Install app**. Once installed, the service worker serves everything offline.
 
 ## What you can do
 
 - Build a plan: pick duration, body parts, goal, equipment, style, difficulty → **Generate**.
-- Preview & edit: swap, remove, or reorder items in any block.
-- Play it back: full-screen player with countdown, timer/rep counter, animated stick figure, audio beeps, and TTS cues. Keyboard: Space pause, ←/→ skip, R rep, Esc abort.
+- Preview & edit: swap, remove, or reorder items in any block; expand any item to read step-by-step instructions.
+- Play it back: full-screen player with countdown, timer/rep counter, animated stick figure, audio beeps, and TTS cues. Two-column layout shows the animation on the left and how-to + cues on the right. Keyboard: Space pause, ←/→ skip, R rep, Esc abort.
 - Save & history: plans persist in `localStorage`; export/import JSON.
 - Extend the library: import portable enrichment files (JSON/CSV/XLSX) via Settings.
 
