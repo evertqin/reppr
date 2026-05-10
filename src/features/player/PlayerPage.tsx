@@ -209,13 +209,12 @@ export function PlayerPage() {
 
   const stepDurationSec = step?.durationSec ?? 0;
   const remainSec = Math.max(0, stepDurationSec - state.elapsedMs / 1000);
-  const isRepWork = step?.kind === 'work' && step.reps != null;
-  // For rep-based work, loop the animation at the exercise's tempo so each rep gets its own cycle.
-  // For time-based work, drive a single cycle from elapsed time over the full step.
-  const repProgress = isRepWork
-    ? undefined
-    : Math.min(1, state.elapsedMs / Math.max(1, stepDurationSec * 1000));
-  const animLoop = isRepWork || (step?.kind === 'work' && (step.durationSec ?? 0) > 30);
+  const isWork = step?.kind === 'work';
+  // Always loop the animation at the exercise's natural tempo so the figure performs
+  // multiple reps within a long time-based step (e.g. a 45s stretch shows ~10 cycles
+  // at tempoSecPerRep=4s rather than one drawn-out rep).
+  const animLoop = isWork;
+  const repProgress = undefined;
   const animLoopMs = ex ? Math.max(400, Math.round(ex.tempoSecPerRep * 1000)) : undefined;
 
   return (
