@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "source": "fixture:enrichment:pushup",
+  "exercises": [
+    {
+      "id": "pushup",
+      "tags": ["upper-body", "bodyweight"],
+      "alternateExerciseIds": ["pike-pushup", "dip"]
+    }
+  ]
+}
