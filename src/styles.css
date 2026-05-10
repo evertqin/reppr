@@ -395,3 +395,5 @@ button.big {
   .library-tree { position: static; max-height: none; }
   .library-detail-grid { grid-template-columns: 1fr; }
 }
+
+.player-clock { font-variant-numeric: tabular-nums; min-width: 95px; text-align: right; }

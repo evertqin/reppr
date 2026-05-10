@@ -274,31 +274,46 @@ function selectWithBodyweightRatio(
   config: ConfigInput,
   count: number,
 ): Exercise[] {
-  const bw = pool.filter(isBodyweight);
-  const equipped = pool.filter((e) => !isBodyweight(e));
-  // No equipped tools selected at all, or one side is empty -> nothing to balance.
+  // Narrow to exercises that match the requested body parts (if any) so the
+  // ratio split happens within the focused subset and doesn't dilute targeting.
+  const matchesBodyPart = (e: Exercise) =>
+    config.bodyParts.length === 0 ||
+    config.bodyParts.some(
+      (m) =>
+        e.primaryMuscles.includes(m) ||
+        e.secondaryMuscles.includes(m) ||
+        e.primaryMuscles.includes('fullBody'),
+    );
+  const focused = config.bodyParts.length === 0 ? pool : pool.filter(matchesBodyPart);
+
   const onlyBodyweight = config.equipment.length === 1 && config.equipment[0] === 'none';
-  if (onlyBodyweight || bw.length === 0 || equipped.length === 0) {
+  const bwFocused = focused.filter(isBodyweight);
+  const eqFocused = focused.filter((e) => !isBodyweight(e));
+
+  // No equipment selected, or one focused side is empty -> let selectMain do its
+  // existing focused round-robin (which can repeat to maintain body-part majority).
+  if (onlyBodyweight || bwFocused.length === 0 || eqFocused.length === 0) {
     return selectMain(rng, pool, config.bodyParts, count);
   }
+
   const ratio = clamp(config.bodyweightRatio ?? 0.5, 0, 1);
   let bwCount = Math.round(count * ratio);
   let eqCount = count - bwCount;
 
-  // Re-balance if either side cannot supply its share with distinct picks.
-  if (bwCount > bw.length) {
-    eqCount += bwCount - bw.length;
-    bwCount = bw.length;
+  // Re-balance if either focused side cannot supply its share with distinct picks.
+  if (bwCount > bwFocused.length) {
+    eqCount += bwCount - bwFocused.length;
+    bwCount = bwFocused.length;
   }
-  if (eqCount > equipped.length) {
-    bwCount += eqCount - equipped.length;
-    eqCount = equipped.length;
+  if (eqCount > eqFocused.length) {
+    bwCount += eqCount - eqFocused.length;
+    eqCount = eqFocused.length;
   }
   bwCount = Math.min(bwCount, count);
   eqCount = count - bwCount;
 
-  const bwPicks = bwCount > 0 ? selectMain(rng, bw, config.bodyParts, bwCount) : [];
-  const eqPicks = eqCount > 0 ? selectMain(rng, equipped, config.bodyParts, eqCount) : [];
+  const bwPicks = bwCount > 0 ? selectMain(rng, bwFocused, config.bodyParts, bwCount) : [];
+  const eqPicks = eqCount > 0 ? selectMain(rng, eqFocused, config.bodyParts, eqCount) : [];
 
   // Interleave so the order isn't "all bodyweight then all equipped".
   const merged: Exercise[] = [];
@@ -310,6 +325,61 @@ function selectWithBodyweightRatio(
     if (i >= bwPicks.length && j >= eqPicks.length) break;
   }
   return avoidConsecutiveSameMuscle(rng, merged.slice(0, count));
+}
+
+/**
+ * Pick a single additional exercise for the duration-adjustment loop. Honors
+ * the user's body-part focus, prefers exercises not already placed, and tries
+ * to keep the bodyweight-vs-equipped share close to `bodyweightRatio`.
+ */
+function pickAdditionalExercise(
+  rng: Rng,
+  pool: Exercise[],
+  config: ConfigInput,
+  current: PlanItem[],
+  usedIds: Set<string>,
+): Exercise | undefined {
+  const matchesBodyPart = (e: Exercise) =>
+    config.bodyParts.length === 0 ||
+    config.bodyParts.some(
+      (m) =>
+        e.primaryMuscles.includes(m) ||
+        e.secondaryMuscles.includes(m) ||
+        e.primaryMuscles.includes('fullBody'),
+    );
+
+  const ratio = clamp(config.bodyweightRatio ?? 0.5, 0, 1);
+  const onlyBodyweight = config.equipment.length === 1 && config.equipment[0] === 'none';
+  const haveBoth =
+    !onlyBodyweight && pool.some(isBodyweight) && pool.some((e) => !isBodyweight(e));
+  const currentBwShare =
+    current.length === 0
+      ? ratio
+      : current.filter((it) => {
+          const ex = pool.find((p) => p.id === it.exerciseId);
+          return ex ? isBodyweight(ex) : false;
+        }).length / current.length;
+  const wantBodyweight = haveBoth ? currentBwShare < ratio : null;
+
+  const candidates = (preferBodyweight: boolean | null) =>
+    pool.filter((e) => {
+      if (usedIds.has(e.id)) return false;
+      if (!matchesBodyPart(e)) return false;
+      if (preferBodyweight === true && !isBodyweight(e)) return false;
+      if (preferBodyweight === false && isBodyweight(e)) return false;
+      return true;
+    });
+
+  const tiers = [
+    candidates(wantBodyweight),
+    candidates(null),
+    pool.filter((e) => !usedIds.has(e.id) && matchesBodyPart(e)),
+    pool.filter((e) => !usedIds.has(e.id)),
+  ];
+  for (const tier of tiers) {
+    if (tier.length > 0) return rng.pick(tier);
+  }
+  return undefined;
 }
 
 interface GenerateOptions {
@@ -485,10 +555,15 @@ export function generatePlan(
     let safety = 32;
     let est = estimateDurationSec({ blocks: blocksOf(mainBlock) }, byId);
     while (safety-- > 0) {
-      if (est > targetSec * 1.2 && mainItems.length > 3) {
+      if (est > targetSec * 1.1 && mainItems.length > 3) {
         mainItems = mainItems.slice(0, mainItems.length - 1);
-      } else if (est < targetSec * 0.8 && mainItems.length < maxItems) {
-        const next = mainExercises[mainItems.length % Math.max(1, mainExercises.length)];
+      } else if (est < targetSec * 0.9 && mainItems.length < maxItems) {
+        // Pick a fresh exercise that (a) honors body-part targeting and
+        // (b) keeps the bodyweight-vs-equipped ratio close to target.
+        const usedIds = new Set(mainItems.map((it) => it.exerciseId));
+        const fresh = pickAdditionalExercise(rng, mainPool, config, mainItems, usedIds);
+        const next =
+          fresh ?? mainExercises[mainItems.length % Math.max(1, mainExercises.length)];
         if (!next) break;
         mainItems = [...mainItems, ...buildItems([next])];
       } else {

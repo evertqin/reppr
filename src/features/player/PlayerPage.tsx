@@ -185,6 +185,21 @@ export function PlayerPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [state.status]);
 
+  // Time-based progress across the whole plan. Sum of all step durations,
+  // counting completed steps fully and the current step by its elapsed time.
+  // When every step is time-based (HIIT, Tabata, warmup, cooldown) this gives
+  // a meaningful elapsed/total readout. For rep-based work the duration is
+  // an estimate (reps × tempo).
+  const totalSec = useMemo(
+    () => state.steps.reduce((acc, s) => acc + (s.durationSec ?? 0), 0),
+    [state.steps],
+  );
+  const elapsedBeforeCurrent = useMemo(() => {
+    let sum = 0;
+    for (let i = 0; i < state.stepIndex; i++) sum += state.steps[i]?.durationSec ?? 0;
+    return sum;
+  }, [state.steps, state.stepIndex]);
+
   if (!plan) {
     return (
       <div className="card">
@@ -200,7 +215,12 @@ export function PlayerPage() {
   const ex = step?.kind === 'work' ? byId.get(step.exerciseId) : null;
   const block = step ? plan.blocks[step.blockIndex] : null;
   const totalSteps = state.steps.length;
-  const progress = totalSteps > 0 ? state.stepIndex / totalSteps : 0;
+
+  const elapsedSec = state.done
+    ? totalSec
+    : elapsedBeforeCurrent + Math.min(state.elapsedMs / 1000, step?.durationSec ?? 0);
+  const progress =
+    totalSec > 0 ? Math.min(1, elapsedSec / totalSec) : totalSteps > 0 ? state.stepIndex / totalSteps : 0;
 
   const nextWork = state.steps
     .slice(state.stepIndex + 1)
@@ -225,6 +245,9 @@ export function PlayerPage() {
           <div className="progress" aria-label="Overall progress">
             <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
           </div>
+          <span className="muted player-clock" aria-live="off">
+            {fmtTime(elapsedSec)} / {fmtTime(totalSec)}
+          </span>
         </div>
         <div className="row">
           <button type="button" onClick={() => navigate(`/preview/${plan.id}`)}>
