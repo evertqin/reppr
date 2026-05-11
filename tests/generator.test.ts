@@ -110,6 +110,39 @@ describe('generator: bodyweight ratio', () => {
   });
 });
 
+describe('generator: muscle tier priority (big/small/aux)', () => {
+  it('selects 2-3 big and 1-2 small when user spans tiers', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        bodyParts: ['chest', 'back', 'biceps'],
+        equipment: ['none', 'dumbbells', 'bench'],
+        style: 'straightSets',
+      }),
+      LIB,
+      { seed: 42 },
+    );
+    const main = plan.blocks.find((b) => b.kind === 'main')!;
+    const tiers = main.items.map((it) => {
+      const ex = EXERCISE_BY_ID.get(it.exerciseId)!;
+      const primary = ex.primaryMuscles[0];
+      const tier =
+        primary === 'chest' || primary === 'back' || primary === 'quads' || primary === 'glutes' || primary === 'hamstrings' || primary === 'fullBody'
+          ? 'big'
+          : primary === 'shoulders' || primary === 'biceps' || primary === 'triceps'
+            ? 'small'
+            : 'aux';
+      return tier;
+    });
+    const big = tiers.filter((t) => t === 'big').length;
+    const small = tiers.filter((t) => t === 'small').length;
+    expect(big).toBeGreaterThanOrEqual(2);
+    expect(big).toBeLessThanOrEqual(4);
+    expect(small).toBeGreaterThanOrEqual(1);
+    expect(small).toBeLessThanOrEqual(3);
+  });
+});
+
 describe('generator: muscle targeting', () => {
   it('chest-focused plan has majority chest hits in main block', () => {
     const config = defaultConfig({

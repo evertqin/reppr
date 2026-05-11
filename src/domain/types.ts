@@ -25,6 +25,30 @@ export const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   'fullBody',
 ];
 
+/**
+ * Compound classification used by the generator to enforce a sensible split of
+ * exercises per session: a few from the BIG muscles (heavy compounds), 1-2
+ * from the SMALL muscles (isolation), and AUX rounds out the session.
+ */
+export type MuscleGroupTier = 'big' | 'small' | 'aux';
+
+export const MUSCLE_GROUP_TIER: Record<MuscleGroup, MuscleGroupTier> = {
+  // BIG: heavy compound movements
+  chest: 'big',
+  back: 'big',
+  quads: 'big',
+  hamstrings: 'big',
+  glutes: 'big',
+  fullBody: 'big',
+  // SMALL: arms + shoulders
+  shoulders: 'small',
+  biceps: 'small',
+  triceps: 'small',
+  // AUX: trunk + lower-leg, and anything that's effectively a finisher
+  core: 'aux',
+  calves: 'aux',
+};
+
 export type Equipment = 'none' | 'dumbbells' | 'bands' | 'pullupBar' | 'bench' | 'barbell';
 export const ALL_EQUIPMENT: Equipment[] = [
   'none',

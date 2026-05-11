@@ -7,12 +7,14 @@ import type {
   Exercise,
   Goal,
   MuscleGroup,
+  MuscleGroupTier,
   PlanBlock,
   PlanItem,
   Scheme,
   Style,
   WorkoutPlan,
 } from '../../domain/types';
+import { MUSCLE_GROUP_TIER } from '../../domain/types';
 import { findExercises } from '../../data/exercises';
 import { createRng, type Rng } from '../../lib/rng';
 
@@ -263,6 +265,132 @@ function isBodyweight(ex: Exercise): boolean {
 }
 
 /**
+ * Quotas applied when the user targets body parts that span multiple tiers.
+ * Mirrors the "pick 2-3 big, 1-2 small, fill with aux" structure used by most
+ * dumbbell-based programs.
+ */
+const TIER_QUOTAS: Record<MuscleGroupTier, [number, number]> = {
+  big: [2, 3],
+  small: [1, 2],
+  aux: [0, 2],
+};
+
+function classifyBodyParts(parts: MuscleGroup[]): Record<MuscleGroupTier, MuscleGroup[]> {
+  const out: Record<MuscleGroupTier, MuscleGroup[]> = { big: [], small: [], aux: [] };
+  for (const m of parts) out[MUSCLE_GROUP_TIER[m]].push(m);
+  return out;
+}
+
+function exerciseBodyParts(ex: Exercise): MuscleGroup[] {
+  return [...ex.primaryMuscles, ...ex.secondaryMuscles];
+}
+
+/**
+ * When the user picks bodyParts spanning multiple tiers (e.g. chest + biceps),
+ * allocate counts per tier (big: 2-3, small: 1-2, aux: fills the rest), then
+ * pick distinct exercises within each tier honoring body-part focus.
+ */
+function selectByMuscleTierPriority(
+  rng: Rng,
+  pool: Exercise[],
+  config: ConfigInput,
+  count: number,
+): Exercise[] | null {
+  const tierMap = classifyBodyParts(config.bodyParts);
+  const presentTiers = (Object.keys(tierMap) as MuscleGroupTier[]).filter(
+    (t) => tierMap[t].length > 0,
+  );
+  // Only kick in when the user spans at least 2 tiers — single-tier focus uses
+  // the existing flow which already round-robins evenly across selected parts.
+  if (presentTiers.length < 2) return null;
+
+  const tierPool: Record<MuscleGroupTier, Exercise[]> = { big: [], small: [], aux: [] };
+  for (const ex of pool) {
+    for (const tier of presentTiers) {
+      if (
+        tierMap[tier].some((m) => exerciseBodyParts(ex).includes(m)) ||
+        ex.primaryMuscles.includes('fullBody')
+      ) {
+        tierPool[tier].push(ex);
+        break;
+      }
+    }
+  }
+
+  // Initial quota: clamp to the number of distinct exercises available.
+  const target: Record<MuscleGroupTier, number> = { big: 0, small: 0, aux: 0 };
+  for (const tier of presentTiers) {
+    const [, hi] = TIER_QUOTAS[tier];
+    target[tier] = Math.min(hi, tierPool[tier].length);
+  }
+  let allocated = (Object.values(target) as number[]).reduce((a, b) => a + b, 0);
+
+  // Trim oversize allocation in tier priority order: aux > small > big.
+  const trimOrder: MuscleGroupTier[] = ['aux', 'small', 'big'];
+  while (allocated > count) {
+    let trimmed = false;
+    for (const tier of trimOrder) {
+      const [lo] = TIER_QUOTAS[tier];
+      if (target[tier] > lo) {
+        target[tier]--;
+        allocated--;
+        trimmed = true;
+        if (allocated <= count) break;
+      }
+    }
+    if (!trimmed) {
+      // hit floors; trim aux below floor if we still must
+      for (const tier of trimOrder) {
+        if (target[tier] > 0 && allocated > count) {
+          target[tier]--;
+          allocated--;
+          trimmed = true;
+        }
+      }
+    }
+    if (!trimmed) break;
+  }
+
+  // Grow allocation toward `count` if we have room (aux first, then small, then big).
+  const growOrder: MuscleGroupTier[] = ['big', 'small', 'aux'];
+  while (allocated < count) {
+    let grew = false;
+    for (const tier of growOrder) {
+      if (target[tier] < tierPool[tier].length) {
+        target[tier]++;
+        allocated++;
+        grew = true;
+        if (allocated >= count) break;
+      }
+    }
+    if (!grew) break;
+  }
+
+  // Pick distinct exercises per tier (round-robin across that tier's body parts).
+  const tierPicks: Record<MuscleGroupTier, Exercise[]> = { big: [], small: [], aux: [] };
+  for (const tier of presentTiers) {
+    if (target[tier] === 0) continue;
+    tierPicks[tier] = selectMain(rng, tierPool[tier], tierMap[tier], target[tier]);
+  }
+
+  // Interleave so order is varied but big-compounds tend to come first.
+  const merged: Exercise[] = [];
+  const cursors: Record<MuscleGroupTier, number> = { big: 0, small: 0, aux: 0 };
+  while (merged.length < count) {
+    let added = false;
+    for (const tier of growOrder) {
+      if (cursors[tier] < tierPicks[tier].length) {
+        merged.push(tierPicks[tier][cursors[tier]++]);
+        added = true;
+        if (merged.length >= count) break;
+      }
+    }
+    if (!added) break;
+  }
+  return merged.slice(0, count);
+}
+
+/**
  * Pick `count` main exercises while honoring `config.bodyweightRatio` against
  * the pool's bodyweight vs. equipped split. Falls back gracefully when one
  * side of the split is empty (e.g. equipment === ['none']) or when the user
@@ -274,6 +402,14 @@ function selectWithBodyweightRatio(
   config: ConfigInput,
   count: number,
 ): Exercise[] {
+  // First: if the user spans multiple muscle tiers (big/small/aux), apply the
+  // 2-3 BIG / 1-2 SMALL / fill-with-AUX template. This takes precedence over
+  // the bodyweight ratio because muscle balance matters more than equipment mix.
+  const tierPicks = selectByMuscleTierPriority(rng, pool, config, count);
+  if (tierPicks && tierPicks.length === count) {
+    return avoidConsecutiveSameMuscle(rng, tierPicks);
+  }
+
   // Narrow to exercises that match the requested body parts (if any) so the
   // ratio split happens within the focused subset and doesn't dilute targeting.
   const matchesBodyPart = (e: Exercise) =>
