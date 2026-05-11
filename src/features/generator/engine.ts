@@ -94,6 +94,41 @@ const DIFFICULTY_RANK: Record<Difficulty, number> = {
   advanced: 2,
 };
 
+/**
+ * Per-tier prescription used by straight-sets style. Reflects the standard
+ * dumbbell-program guidance: BIG muscles get heavier loading & longer rest,
+ * AUX gets higher reps & shorter rest.
+ */
+interface TierScheme {
+  sets: [number, number];
+  reps: [number, number];
+  /** Rest between sets of the SAME exercise. */
+  restSec: [number, number];
+}
+
+const TIER_SCHEME: Record<MuscleGroupTier, TierScheme> = {
+  big:   { sets: [3, 4], reps: [6, 10],  restSec: [90, 120] },
+  small: { sets: [2, 3], reps: [8, 12],  restSec: [60, 90] },
+  aux:   { sets: [2, 3], reps: [12, 20], restSec: [30, 60] },
+};
+
+/**
+ * How far into a tier's rep band the goal pulls (0 = low end, 1 = high end).
+ * Strength → low reps & heavier; endurance/fat-loss → high reps.
+ */
+const GOAL_REP_BIAS: Record<Goal, number> = {
+  strength: 0.0,
+  hypertrophy: 0.4,
+  fatLoss: 0.7,
+  endurance: 1.0,
+  mobility: 0.6,
+};
+
+function exerciseTier(ex: Exercise): MuscleGroupTier {
+  const primary = ex.primaryMuscles[0] ?? 'fullBody';
+  return MUSCLE_GROUP_TIER[primary];
+}
+
 // ----- Helpers -----
 
 function clamp(n: number, min: number, max: number): number {
@@ -154,6 +189,8 @@ function buildScheme(
   difficulty: Difficulty,
   ex: Exercise,
   setsForItem: number,
+  style: Style,
+  setCap?: number,
 ): Scheme {
   const goalMod = GOAL_MODS[goal];
   const diffMul = DIFFICULTY_SCALE[difficulty];
@@ -172,6 +209,40 @@ function buildScheme(
       restSec: setsForItem > 1 ? Math.round(template.withinItemRestSec * goalMod.restMul) : 0,
     };
   }
+
+  // Straight-sets style: apply per-tier sets/reps/rest from the muscle-tier
+  // prescription (BIG: 3-4×6-10 / 90-120s, SMALL: 2-3×8-12 / 60-90s,
+  // AUX: 2-3×12-20 / 30-60s). Goal nudges within the tier's rep band.
+  if (style === 'straightSets') {
+    const tier = exerciseTier(ex);
+    const prescription = TIER_SCHEME[tier];
+    const setsBand = prescription.sets;
+    const repsBand = prescription.reps;
+    const restBand = prescription.restSec;
+    const goalBias = GOAL_REP_BIAS[goal]; // 0 = low end of band, 1 = high end
+    const reps = Math.max(
+      3,
+      Math.round(
+        diffMul *
+          (repsBand[0] + (repsBand[1] - repsBand[0]) * goalBias),
+      ),
+    );
+    // Difficulty also nudges set count: advanced gets the high end, beginner the low.
+    const sets =
+      difficulty === 'advanced'
+        ? setsBand[1]
+        : difficulty === 'beginner'
+          ? setsBand[0]
+          : rangePick(rng, setsBand);
+    const cappedSets = setCap != null ? Math.min(sets, setCap) : sets;
+    const restSec =
+      cappedSets > 1
+        ? Math.round(restBand[0] + (restBand[1] - restBand[0]) * 0.5)
+        : 0;
+    return { kind: 'reps', reps, sets: cappedSets, restSec };
+  }
+
+  // Other styles (circuit/HIIT/Tabata) — keep style-template driven scheme.
   let reps = rangePick(rng, goalMod.reps);
   reps = Math.max(3, Math.round(reps * diffMul));
   const restWithin =
@@ -643,19 +714,32 @@ export function generatePlan(
     rounds = config.durationMin < 15 ? 2 : clamp(Math.round(config.durationMin / 12), 3, 5);
   }
 
-  let setsPerItem = 1;
+  const setsPerItem = 1;
+  // Hard cap for straight-sets at short durations: per-tier prescription wants
+  // 3-4 sets for BIG muscles which alone blows a 10-min budget. Cap the per-tier
+  // sets count so the duration adjustment loop has room to tune.
+  let setCap: number | undefined;
   if (config.style === 'straightSets') {
-    if (config.durationMin < 15) setsPerItem = 2;
-    else if (config.durationMin < 30) setsPerItem = 3;
-    else if (config.durationMin < 45) setsPerItem = 4;
-    else setsPerItem = 5;
+    if (config.durationMin < 15) setCap = 2;
+    else if (config.durationMin < 30) setCap = 3;
+    else if (config.durationMin < 45) setCap = 4;
+    // else: no cap (use tier prescription as-is, max 4)
   }
 
   const buildItems = (exs: Exercise[]): PlanItem[] =>
     exs.map((ex) => ({
       id: rng.uuid(),
       exerciseId: ex.id,
-      scheme: buildScheme(rng, template, config.goal, config.difficulty, ex, setsPerItem),
+      scheme: buildScheme(
+        rng,
+        template,
+        config.goal,
+        config.difficulty,
+        ex,
+        setsPerItem,
+        config.style,
+        setCap,
+      ),
     }));
 
   const mainExercises = selectWithBodyweightRatio(
@@ -687,8 +771,10 @@ export function generatePlan(
   const targetSec = config.durationMin * 60;
 
   if (config.style !== 'tabata') {
-    const maxItems = 12;
-    let safety = 32;
+    // Long sessions need room for more items; straight-sets with beginner sets
+    // (low end of tier band) at 60 min would otherwise cap at 12 items and fall short.
+    const maxItems = config.durationMin >= 45 ? 18 : 12;
+    let safety = 40;
     let est = estimateDurationSec({ blocks: blocksOf(mainBlock) }, byId);
     while (safety-- > 0) {
       if (est > targetSec * 1.1 && mainItems.length > 3) {
