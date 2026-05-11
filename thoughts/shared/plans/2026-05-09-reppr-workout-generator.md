@@ -911,3 +911,177 @@ Greenfield — no migration. Storage keys are versioned (`:v1`) so a future sche
 - Original request: user message dated 2026-05-09 (no ticket).
 - User clarifications captured pre-plan: React + Vite + TS; SVG animations now with future renderer swap; localStorage persistence; configurable body-part / goal / equipment / style; beeps + TTS; project name `reppr`.
 - Hard constraint added by user (2026-05-09): the running app must be fully self-sustaining and never call an LLM. LLMs may only produce portable artifacts (data files or generator source) consumed by the app.
+
+
+---
+
+## Post-launch iterations (chronological)
+
+After the original 11 phases shipped, we kept refining the live app on GitHub Pages
+(`https://evertqin.github.io/reppr/`). This log captures the changes that were not
+in the original plan, with rationale, so a future re-implementation produces the
+same end state.
+
+### Hosting & deployment
+
+- **Hosted on GitHub Pages with HashRouter.** `BrowserRouter` was swapped for
+  `HashRouter` so deep links survive Pages refreshes (no SPA fallback needed).
+  `vite.config.ts` reads `VITE_BASE` (default `/reppr/`) so the same build
+  can also be deployed at the root of a custom domain by setting `VITE_BASE=/`.
+  PWA manifest `start_url` and `scope` track `base`.
+- **CI/CD via GitHub Actions** at `.github/workflows/pages.yml` runs lint +
+  vitest + build on every push to `main`, then publishes to Pages. SPA fallback
+  is achieved by copying `dist/index.html` to `dist/404.html` during the
+  workflow.
+- **Streamlined deploy script** at `scripts/deploy.mjs` (`npm run deploy`):
+  validates branch, optionally runs `npm run check`, commits any pending changes,
+  pushes, and watches the workflow run via `gh`. Flags: `--skip-check`,
+  `--no-watch`, custom commit message as positional arg.
+
+### Animation: tried Lottie, kept SVG
+
+- Built a hybrid renderer with Lottie preferred and SVG fallback, including a
+  registry resolution order (Lottie → aliased Lottie → SVG → aliased SVG → fallback)
+  and a lazy-loaded `lottie-react` runtime.
+- **Removed** after concluding that sourcing high-quality, license-clean,
+  exercise-specific Lotties is impractical. Bundle precache shrank ~313 KB
+  (558 KB → 245 KB) after the revert. See `Lessons Learned` above.
+- **Multi-keyframe SVG stick figures** are the production renderer. Poses are
+  arrays (e.g. squat: `STAND → SQUAT_MID → SQUAT_DOWN → SQUAT_MID`) interpolated
+  with smoothstep easing, and each renderer can override `loopMs` per-call so
+  the player ties cycle duration to `ex.tempoSecPerRep`. A faint ground line
+  was added under each figure for visual reference.
+- `LOOP_MS` for time-based work is always derived from the exercise's
+  `tempoSecPerRep` (clamped to 400ms minimum) so a 30s stretch shows ~10
+  rep cycles, not one drawn-out rep.
+
+### Player UX
+
+- **Reducer `setSteps` event.** `buildSteps` runs after the plan loads from
+  zustand-persist, but `useReducer(reducer, steps, initialState)` snapshots the
+  initial empty array. We added a `setSteps` event dispatched whenever the
+  derived `steps` array changes so clicking `Start` actually plays a workout
+  instead of jumping straight to `finished`.
+- **First-exercise TTS announcement bug fixed.** The previous TTS effect only
+  fired when `stepIndex` changed, but on the very first step the index stays
+  at 0 across `idle → countdown → work`. Initialize the tracker to `null` and
+  only consider it "seen" when entering `work`/`rest`; reset to `null` on
+  `idle`/`finished` so re-runs announce again.
+- **Two-column work layout.** Animation + timer/rep counter on the left; an
+  always-visible **How to do it** panel (numbered instructions + bulleted cues)
+  on the right. Stacks vertically below 760px.
+- **Elapsed/total time on the progress bar.** Header bar now shows
+  `block label · progress bar · M:SS / M:SS`. Progress is computed from the
+  sum of `durationSec` across all steps (counting completed steps in full and
+  the current step by elapsed time). Falls back to `stepIndex / totalSteps`
+  if no time data is available.
+
+### Generator improvements
+
+The generator went through several rounds of tuning:
+
+1. **Tighter duration tolerance.** The adjustment loop's tolerance band was
+   widened to ±20% during initial tuning, then **tightened back to ±10%** after
+   user feedback that 25-min HIIT was landing at ~22 min. Tests use a ±25%
+   tolerance to give the loop slack across all 96 style/goal/difficulty/duration
+   permutations.
+2. **No-repeat fill in the adjustment loop.** When the loop adds an extra item
+   to hit duration, `pickAdditionalExercise` first looks for an exercise not
+   already in the plan that still honors body-part focus and the bodyweight
+   ratio. Only repeats when the pool is genuinely exhausted.
+3. **`bodyweightRatio` in `ConfigInput`.** New 0..1 slider in the config
+   form (only shown when at least one non-bodyweight equipment is selected,
+   default 0.5). The selector partitions the focused pool into bodyweight vs.
+   equipped subsets, picks distinct exercises from each side proportional to
+   the ratio, then interleaves them. Auto-rebalances if one side can't supply
+   its share.
+4. **Muscle-tier classification.** `MUSCLE_GROUP_TIER` in
+   `src/domain/types.ts` partitions muscle groups:
+   - `big`: chest, back, quads, hamstrings, glutes, fullBody
+   - `small`: shoulders, biceps, triceps
+   - `aux`: core, calves
+5. **Tier-priority quotas.** When the user picks body parts that span at least
+   two tiers (e.g. chest + biceps + core), `selectByMuscleTierPriority` runs
+   *before* the bodyweight-ratio selector. Quotas: BIG `[2, 3]`, SMALL
+   `[1, 2]`, AUX `[0, 2]`. Trims oversize allocation in `aux > small > big`
+   priority; grows toward the style's exercise count in the reverse direction.
+   Single-tier focus uses the existing per-body-part round-robin.
+6. **Per-tier sets / reps / rest in straight-sets style** (other styles still use
+   their template-driven scheme):
+   - BIG: 3-4 sets × 6-10 reps · 90-120s rest
+   - SMALL: 2-3 sets × 8-12 reps · 60-90s rest
+   - AUX: 2-3 sets × 12-20 reps · 30-60s rest
+
+   Difficulty selects the set count (beginner → low end of band, intermediate →
+   random within band, advanced → high end). Goal biases reps within the band:
+   strength → low end, hypertrophy → 40%, fat-loss → 70%, endurance/mobility →
+   high end. Rest sits at the band midpoint.
+7. **Set cap for short straight-sets sessions.** `setCap` clamps the per-tier
+   set count when the duration budget is tight (<15 min → 2 sets, <30 min → 3,
+   <45 min → 4, ≥45 min → tier band as-is).
+8. **Larger `maxItems` for long sessions.** The duration adjustment loop
+   allows up to 18 items at ≥45 min (from 12), so long beginner straight-sets
+   sessions can reach the target without bloating set counts.
+
+### Library expansion (post-launch additions to seed)
+
+To better match the dumbbell-program template the user shared, we added 12
+exercises focused on filling muscle-tier coverage gaps:
+
+- **Chest**: dumbbell-bench-press, dumbbell-incline-press, dumbbell-fly
+- **Back**: single-arm-dumbbell-row
+- **Legs**: bulgarian-split-squat
+- **Shoulders**: arnold-press
+- **Triceps**: overhead-tricep-extension, diamond-pushup
+- **Biceps**: hammer-curl, concentration-curl
+- **Calves**: calf-raise, dumbbell-calf-raise
+
+All entries use existing `animationKey` values (`dumbbell-press`,
+`dumbbell-curl`, `dumbbell-row`, `squat`, `lunge`, `pushup`,
+`jumping-jack`) so no new SVG renderer registrations were needed.
+
+### Library page (new route)
+
+A dedicated `/library` page added to the main nav. Two-pane layout:
+
+- **Left**: search box + collapsible tree grouped by warm-up, cool-down, then
+  every primary muscle group. Counts per group; first three groups expanded by
+  default; live search auto-expands matches across name / id / tags.
+- **Right**: looping animation, difficulty/warmup/cooldown/unilateral chips,
+  primary/secondary muscles, equipment, default scheme, tempo, animation key,
+  tags, full step-by-step instructions, cues, and alternate exercise IDs.
+- An exercise appears under each of its primary muscles. Sticky tree on desktop;
+  stacks vertically below 760px.
+
+### Settings & UX polish
+
+- **Default theme is dark.** Persist key bumped from
+  `reppr:settings:v1` → `reppr:settings:v2` so existing visitors with the
+  old `auto` setting get the new default once. Users can still switch back via
+  Settings → Theme.
+- **Preview page exposes step-by-step instructions** under each plan item via a
+  `<details>` element so users can inspect form before pressing Start.
+- **Player work view shows cues inline** under the exercise name during work
+  steps.
+
+### Dev experience
+
+- **`npm run check`** = lint + tests + build, mirroring the CI gates so the
+  deploy script can short-circuit them with `--skip-check` if the user knows
+  what they're doing.
+- **`EXERCISE_BY_ID`** is exported from `src/data/exercises.ts` for tests
+  and the duration estimator.
+- **Probe tests under `tests/_probe.test.ts`** were used for one-off generator
+  inspection during tuning. They are temporary — removed after each session.
+
+### Test count
+
+Test suite grew from 235 (post-Phase 11) → **249** as new behaviors were added:
+
+- `generator: bodyweight ratio` (2 tests)
+- `generator: muscle tier priority (big/small/aux)` (1 test)
+- Plus existing duration adherence / equipment / muscle targeting / determinism
+  / tabata structure suites unchanged.
+
+The 96-permutation duration adherence test is the strongest guarantee that
+generator changes don't regress a configuration somewhere.
