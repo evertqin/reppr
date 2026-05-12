@@ -218,6 +218,72 @@ button.big {
   font-size: 1.25rem;
 }
 .next-up { color: var(--fg-dim); }
+.player-rest {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(280px, 1.2fr);
+  gap: 24px;
+  align-items: center;
+  width: 100%;
+  max-width: 1000px;
+  padding: 0 16px;
+}
+.rest-countdown {
+  min-width: 0;
+}
+.rest-preview {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 14px 18px;
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-height: 72vh;
+  overflow-y: auto;
+}
+.rest-preview-header {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+.rest-preview-header strong {
+  font-size: 1.15rem;
+}
+.rest-preview-demo {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rest-preview-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.rest-preview-section h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+}
+.rest-preview-section .how-to-steps,
+.rest-preview-section .how-to-cues-list {
+  margin-top: 0;
+}
+.rest-preview-list {
+  font-size: 0.92rem;
+}
+.rest-preview-list li {
+  margin: 2px 0;
+}
 .player-controls {
   display: flex;
   gap: 12px;
@@ -285,6 +351,21 @@ button.big {
     grid-template-columns: 1fr;
   }
   .player-howto-panel { max-height: none; }
+  .player-rest {
+    grid-template-columns: 1fr;
+  }
+  .rest-preview {
+    grid-template-columns: 120px minmax(0, 1fr);
+    max-height: none;
+  }
+  .rest-preview-demo { min-height: 120px; }
+}
+
+@media (max-width: 520px) {
+  .rest-preview {
+    grid-template-columns: 1fr;
+  }
+  .rest-preview-demo { max-width: 220px; }
 }
 
 /* ----- Library ----- */

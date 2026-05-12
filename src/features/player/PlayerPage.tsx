@@ -16,11 +16,70 @@ import {
   type PlayerEvent,
   type Step,
 } from './machine';
+import type { Exercise } from '../../domain/types';
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.max(0, Math.round(sec % 60));
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function stepSummary(step: Extract<Step, { kind: 'work' }> | null): string | null {
+  if (!step) return null;
+  if (step.reps != null) return `${step.reps} reps`;
+  return `${step.durationSec ?? 0} seconds`;
+}
+
+export function RestExercisePreview({
+  exercise,
+  step,
+}: {
+  exercise: Exercise;
+  step: Extract<Step, { kind: 'work' }>;
+}) {
+  const summary = stepSummary(step);
+  const loopMs = Math.max(400, Math.round(exercise.tempoSecPerRep * 1000));
+
+  return (
+    <aside className="rest-preview" aria-label={`Next exercise: ${exercise.name}`}>
+      <div className="rest-preview-header">
+        <span className="muted">Next up</span>
+        <strong>{exercise.name}</strong>
+        {summary && <span className="muted">{summary}</span>}
+      </div>
+      <div className="rest-preview-demo">
+        <ExerciseAnimation
+          animationKey={exercise.animationKey}
+          loop
+          loopMs={loopMs}
+          ariaLabel={`${exercise.name} demonstration`}
+          scale={0.72}
+        />
+      </div>
+      <div className="rest-preview-copy">
+        {exercise.instructions.length > 0 && (
+          <div className="rest-preview-section">
+            <h3>Tips</h3>
+            <ol className="how-to-steps rest-preview-list">
+              {exercise.instructions.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {exercise.cues.length > 0 && (
+          <div className="rest-preview-section">
+            <h3>Cues</h3>
+            <ul className="how-to-cues-list rest-preview-list">
+              {exercise.cues.map((cue, index) => (
+                <li key={index}>{cue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 export function PlayerPage() {
@@ -230,6 +289,7 @@ export function PlayerPage() {
   const stepDurationSec = step?.durationSec ?? 0;
   const remainSec = Math.max(0, stepDurationSec - state.elapsedMs / 1000);
   const isWork = step?.kind === 'work';
+  const isRest = state.status === 'rest' || (state.status === 'paused' && state.resumeStatus === 'rest');
   // Always loop the animation at the exercise's natural tempo so the figure performs
   // multiple reps within a long time-based step (e.g. a 45s stretch shows ~10 cycles
   // at tempoSecPerRep=4s rather than one drawn-out rep).
@@ -332,15 +392,18 @@ export function PlayerPage() {
               </aside>
             </div>
           )}
-        {state.status === 'rest' && step?.kind === 'rest' && (
-          <div className="player-center">
-            <h2>REST</h2>
-            <div className="big-timer">{fmtTime(remainSec)}</div>
-            {nextEx && (
-              <div className="next-up">
-                Next: <strong>{nextEx.name}</strong>
-              </div>
-            )}
+        {isRest && step?.kind === 'rest' && (
+          <div className="player-rest">
+            <div className="player-center rest-countdown">
+              <h2>REST</h2>
+              <div className="big-timer">{fmtTime(remainSec)}</div>
+              {nextEx && (
+                <div className="next-up">
+                  Next: <strong>{nextEx.name}</strong>
+                </div>
+              )}
+            </div>
+            {nextEx && nextWork && <RestExercisePreview exercise={nextEx} step={nextWork} />}
           </div>
         )}
         {state.status === 'finished' && (
