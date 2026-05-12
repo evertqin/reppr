@@ -137,9 +137,12 @@ function clamp(n: number, min: number, max: number): number {
 
 function exerciseDurationSec(item: PlanItem, ex: Exercise | undefined): number {
   const s = item.scheme;
-  if (s.kind === 'time') return s.workSec * s.sets + s.restSec * Math.max(0, s.sets - 1);
+  const sideMultiplier = ex?.unilateral ? 2 : 1;
+  if (s.kind === 'time') {
+    return s.workSec * s.sets * sideMultiplier + s.restSec * Math.max(0, s.sets - 1);
+  }
   const tempo = ex?.tempoSecPerRep ?? 3;
-  return s.reps * tempo * s.sets + s.restSec * Math.max(0, s.sets - 1);
+  return s.reps * tempo * s.sets * sideMultiplier + s.restSec * Math.max(0, s.sets - 1);
 }
 
 /**
@@ -652,7 +655,9 @@ export function generatePlan(
     ? config.equipment
     : ['none', ...config.equipment];
 
-  const mainPool = poolByEquipDifficulty(library, equip, config.difficulty, false, false);
+  const rawMainPool = poolByEquipDifficulty(library, equip, config.difficulty, false, false);
+  const tabataPool = rawMainPool.filter((exercise) => !exercise.unilateral);
+  const mainPool = config.style === 'tabata' && tabataPool.length >= 8 ? tabataPool : rawMainPool;
   const warmupPool = poolByEquipDifficulty(library, equip, config.difficulty, true, undefined);
   const cooldownPool = poolByEquipDifficulty(library, equip, config.difficulty, undefined, true);
 

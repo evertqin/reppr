@@ -7,12 +7,15 @@ import { estimateDurationSec } from '../generator';
 import { ExerciseAnimation } from '../../animation/registry';
 import type { Exercise, PlanBlock, PlanItem, WorkoutPlan } from '../../domain/types';
 
-function fmtScheme(item: PlanItem): string {
+function fmtScheme(item: PlanItem, exercise: Exercise | undefined): string {
   const s = item.scheme;
+  const sideNote = exercise?.unilateral ? ' each side' : '';
   if (s.kind === 'reps') {
-    return s.sets > 1 ? `${s.sets} × ${s.reps} reps` : `${s.reps} reps`;
+    return s.sets > 1
+      ? `${s.sets} × ${s.reps} reps${sideNote}`
+      : `${s.reps} reps${sideNote}`;
   }
-  return `${s.workSec}s work / ${s.restSec}s rest`;
+  return `${s.workSec}s work${sideNote} / ${s.restSec}s rest`;
 }
 
 function fmtDuration(sec: number): string {
@@ -136,7 +139,7 @@ export function PreviewPage() {
                   </div>
                   <div className="plan-meta">
                     <div className="plan-name">{ex?.name ?? item.exerciseId}</div>
-                    <div className="muted">{fmtScheme(item)}</div>
+                    <div className="muted">{fmtScheme(item, ex)}</div>
                     {ex && (ex.instructions.length > 0 || ex.cues.length > 0) && (
                       <details className="how-to">
                         <summary>How to do it</summary>

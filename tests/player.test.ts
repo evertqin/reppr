@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildSteps, initialState, reducer, type PlayerState, type Step } from '../src/features/player/machine';
 import { generatePlan } from '../src/features/generator';
 import { buildLibrary } from '../src/data/exercises';
-import type { ConfigInput } from '../src/domain/types';
+import type { ConfigInput, WorkoutPlan } from '../src/domain/types';
 
 const LIB = buildLibrary();
 const BY_ID = new Map(LIB.map((e) => [e.id, e]));
@@ -18,6 +18,31 @@ const config: ConfigInput = {
 
 const plan = generatePlan(config, LIB, { seed: 7 });
 const STEPS: Step[] = buildSteps(plan, BY_ID);
+
+const unilateralPlan: WorkoutPlan = {
+  id: 'unilateral-plan',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  name: 'Unilateral test',
+  config,
+  estimatedDurationSec: 0,
+  blocks: [
+    {
+      id: 'main',
+      kind: 'main',
+      label: 'Main',
+      rounds: 1,
+      interItemRestSec: 0,
+      interRoundRestSec: 0,
+      items: [
+        {
+          id: 'row',
+          exerciseId: 'single-arm-dumbbell-row',
+          scheme: { kind: 'reps', reps: 10, sets: 2, restSec: 60 },
+        },
+      ],
+    },
+  ],
+};
 
 function init(): PlayerState {
   return initialState(STEPS);
@@ -97,5 +122,15 @@ describe('player reducer', () => {
     let s = reducer(init(), { type: 'start' });
     s = reducer(s, { type: 'abort' });
     expect(s.done).toBe(true);
+  });
+
+  it('expands unilateral work into right then left with rest after both sides', () => {
+    const steps = buildSteps(unilateralPlan, BY_ID);
+    expect(steps).toHaveLength(5);
+    expect(steps[0]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'right' });
+    expect(steps[1]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
+    expect(steps[2]).toMatchObject({ kind: 'rest', durationSec: 60 });
+    expect(steps[3]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'right' });
+    expect(steps[4]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
   });
 });

@@ -5,6 +5,7 @@ import { RestExercisePreview } from '../src/features/player/PlayerPage';
 import type { Step } from '../src/features/player/machine';
 
 const pushup = SEED_EXERCISES.find((exercise) => exercise.id === 'pushup');
+const singleArmRow = SEED_EXERCISES.find((exercise) => exercise.id === 'single-arm-dumbbell-row');
 
 const nextWork: Extract<Step, { kind: 'work' }> = {
   kind: 'work',
@@ -30,5 +31,16 @@ describe('RestExercisePreview', () => {
     expect(html).toContain(pushup!.instructions[0]);
     expect(html).toContain('Cues');
     expect(html).toContain(pushup!.cues[0]);
+  });
+
+  it('marks side-specific next exercises with (R) or (L)', () => {
+    expect(singleArmRow).toBeDefined();
+
+    const html = renderToStaticMarkup(
+      <RestExercisePreview exercise={singleArmRow!} step={{ ...nextWork, side: 'right' }} />,
+    );
+
+    expect(html).toContain('Single-Arm Dumbbell Row (R)');
+    expect(html).toContain('Single-Arm Dumbbell Row (R) demonstration');
   });
 });

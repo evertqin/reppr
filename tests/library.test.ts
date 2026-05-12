@@ -29,6 +29,19 @@ describe('seed library integrity', () => {
     }
   });
 
+  it('marks only true side-specific exercises as unilateral', () => {
+    const unilateralIds = SEED_EXERCISES.filter((ex) => ex.unilateral).map((ex) => ex.id);
+    expect(unilateralIds.sort()).toEqual([
+      'bulgarian-split-squat',
+      'concentration-curl',
+      'lunge',
+      'reverse-lunge',
+      'single-arm-dumbbell-row',
+    ]);
+    expect(SEED_EXERCISES.find((ex) => ex.id === 'bird-dog')?.unilateral).toBeFalsy();
+    expect(SEED_EXERCISES.find((ex) => ex.id === 'cat-cow')?.unilateral).toBeFalsy();
+  });
+
   it('findExercises filters by equipment', () => {
     const lib = buildLibrary();
     const bw = findExercises(lib, { equipment: ['none'] });

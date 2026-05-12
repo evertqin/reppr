@@ -18,8 +18,8 @@ const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   fullBody: 'Full body',
 };
 
-const SPECIAL_GROUPS = ['warmup', 'cooldown'] as const;
-type GroupKey = MuscleGroup | (typeof SPECIAL_GROUPS)[number];
+type SpecialGroup = 'warmup' | 'cooldown';
+type GroupKey = MuscleGroup | SpecialGroup;
 
 function classify(ex: Exercise): GroupKey[] {
   const groups: GroupKey[] = [];
@@ -55,6 +55,13 @@ function buildGroups(library: Exercise[]): GroupNode[] {
         k === 'warmup' ? 'Warm-up' : k === 'cooldown' ? 'Cool-down' : MUSCLE_LABELS[k],
       exercises: (buckets.get(k) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
+}
+
+function defaultSchemeLabel(exercise: Exercise): string {
+  const sideNote = exercise.unilateral ? ' each side' : '';
+  return exercise.defaultScheme.kind === 'reps'
+    ? `${exercise.defaultScheme.sets} × ${exercise.defaultScheme.reps} reps${sideNote} · ${exercise.defaultScheme.restSec}s rest`
+    : `${exercise.defaultScheme.sets} × ${exercise.defaultScheme.workSec}s work${sideNote} · ${exercise.defaultScheme.restSec}s rest`;
 }
 
 export function LibraryPage() {
@@ -186,11 +193,7 @@ function ExerciseDetail({ ex }: { ex: Exercise }) {
           </DetailRow>
         )}
         <DetailRow label="Equipment">{ex.equipment.join(', ')}</DetailRow>
-        <DetailRow label="Default scheme">
-          {ex.defaultScheme.kind === 'reps'
-            ? `${ex.defaultScheme.sets} × ${ex.defaultScheme.reps} reps · ${ex.defaultScheme.restSec}s rest`
-            : `${ex.defaultScheme.sets} × ${ex.defaultScheme.workSec}s work · ${ex.defaultScheme.restSec}s rest`}
-        </DetailRow>
+        <DetailRow label="Default scheme">{defaultSchemeLabel(ex)}</DetailRow>
         <DetailRow label="Tempo">{ex.tempoSecPerRep}s per rep</DetailRow>
         <DetailRow label="Animation key">
           <code>{ex.animationKey}</code>

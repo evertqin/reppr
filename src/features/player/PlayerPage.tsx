@@ -15,8 +15,24 @@ import {
   reducer,
   type PlayerEvent,
   type Step,
+  type WorkSide,
 } from './machine';
 import type { Exercise } from '../../domain/types';
+
+function sideLabel(side: WorkSide | undefined): string | null {
+  if (!side) return null;
+  return side === 'right' ? 'R' : 'L';
+}
+
+function sideSpeechLabel(side: WorkSide | undefined): string | null {
+  if (!side) return null;
+  return side === 'right' ? 'right side' : 'left side';
+}
+
+function exerciseDisplayName(exercise: Exercise, step: Extract<Step, { kind: 'work' }>): string {
+  const label = sideLabel(step.side);
+  return label ? `${exercise.name} (${label})` : exercise.name;
+}
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -38,13 +54,14 @@ export function RestExercisePreview({
   step: Extract<Step, { kind: 'work' }>;
 }) {
   const summary = stepSummary(step);
+  const displayName = exerciseDisplayName(exercise, step);
   const loopMs = Math.max(400, Math.round(exercise.tempoSecPerRep * 1000));
 
   return (
-    <aside className="rest-preview" aria-label={`Next exercise: ${exercise.name}`}>
+    <aside className="rest-preview" aria-label={`Next exercise: ${displayName}`}>
       <div className="rest-preview-header">
         <span className="muted">Next up</span>
-        <strong>{exercise.name}</strong>
+        <strong>{displayName}</strong>
         {summary && <span className="muted">{summary}</span>}
       </div>
       <div className="rest-preview-demo">
@@ -52,7 +69,7 @@ export function RestExercisePreview({
           animationKey={exercise.animationKey}
           loop
           loopMs={loopMs}
-          ariaLabel={`${exercise.name} demonstration`}
+          ariaLabel={`${displayName} demonstration`}
           scale={0.72}
         />
       </div>
@@ -119,10 +136,12 @@ export function PlayerPage() {
     if (cur.kind === 'work') {
       const ex2 = byId.get(cur.exerciseId);
       if (ex2) {
+        const side = sideSpeechLabel(cur.side);
+        const name = side ? `${ex2.name}, ${side}` : ex2.name;
         const detail =
           cur.reps != null ? `${cur.reps} reps` : `${cur.durationSec ?? 0} seconds`;
         speakerRef.current.cancel();
-        speakerRef.current.speak(`${ex2.name}, ${detail}`, {
+        speakerRef.current.speak(`${name}, ${detail}`, {
           voice: ttsVoice,
           rate: ttsRate,
           volume: ttsVolume,
@@ -285,10 +304,12 @@ export function PlayerPage() {
     .slice(state.stepIndex + 1)
     .find((s): s is Extract<Step, { kind: 'work' }> => s.kind === 'work');
   const nextEx = nextWork ? byId.get(nextWork.exerciseId) : null;
+  const nextExerciseName = nextEx && nextWork ? exerciseDisplayName(nextEx, nextWork) : null;
 
   const stepDurationSec = step?.durationSec ?? 0;
   const remainSec = Math.max(0, stepDurationSec - state.elapsedMs / 1000);
   const isWork = step?.kind === 'work';
+  const currentExerciseName = ex && step?.kind === 'work' ? exerciseDisplayName(ex, step) : '';
   const isRest = state.status === 'rest' || (state.status === 'paused' && state.resumeStatus === 'rest');
   // Always loop the animation at the exercise's natural tempo so the figure performs
   // multiple reps within a long time-based step (e.g. a 45s stretch shows ~10 cycles
@@ -349,10 +370,10 @@ export function PlayerPage() {
                   repProgress={repProgress}
                   loop={animLoop}
                   loopMs={animLoopMs}
-                  ariaLabel={ex.name}
+                  ariaLabel={currentExerciseName}
                   scale={1}
                 />
-                <h2 aria-live="polite">{ex.name}</h2>
+                <h2 aria-live="polite">{currentExerciseName}</h2>
                 {step.reps != null ? (
                   <>
                     <div className="big-counter" aria-live="polite">
@@ -397,9 +418,9 @@ export function PlayerPage() {
             <div className="player-center rest-countdown">
               <h2>REST</h2>
               <div className="big-timer">{fmtTime(remainSec)}</div>
-              {nextEx && (
+              {nextExerciseName && (
                 <div className="next-up">
-                  Next: <strong>{nextEx.name}</strong>
+                  Next: <strong>{nextExerciseName}</strong>
                 </div>
               )}
             </div>
@@ -451,9 +472,9 @@ export function PlayerPage() {
           >
             ⏭
           </button>
-          {nextEx && (
+          {nextExerciseName && (
             <span className="next-chip muted">
-              Next: <strong>{nextEx.name}</strong>
+              Next: <strong>{nextExerciseName}</strong>
             </span>
           )}
         </footer>

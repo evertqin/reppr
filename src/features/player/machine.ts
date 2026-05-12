@@ -1,5 +1,7 @@
 import type { Exercise, PlanItem, WorkoutPlan } from '../../domain/types';
 
+export type WorkSide = 'right' | 'left';
+
 /**
  * A flat sequence of work/rest steps the player walks through.
  * Pre-computed from a WorkoutPlan; the reducer only needs to advance an index.
@@ -15,6 +17,8 @@ export interface WorkStep {
   /** Either reps target or seconds target. */
   reps?: number;
   durationSec?: number;
+  /** Side-specific work for unilateral exercises. Always scheduled right, then left. */
+  side?: WorkSide;
 }
 
 export interface RestStep {
@@ -57,22 +61,28 @@ export type PlayerEvent =
 
 export function buildSteps(plan: WorkoutPlan, byId: ReadonlyMap<string, Exercise>): Step[] {
   const steps: Step[] = [];
+  const sidesFor = (exercise: Exercise | undefined): (WorkSide | undefined)[] =>
+    exercise?.unilateral ? ['right', 'left'] : [undefined];
+
   plan.blocks.forEach((block, blockIndex) => {
     for (let r = 1; r <= block.rounds; r++) {
       block.items.forEach((item: PlanItem, itemIndex) => {
         const ex = byId.get(item.exerciseId);
         if (item.scheme.kind === 'time') {
           // Each set within the item becomes one work + within-item rest pair.
-          for (let s = 0; s < item.scheme.sets; s++) {
-            steps.push({
-              kind: 'work',
-              blockIndex,
-              round: r,
-              itemIndex,
-              exerciseId: item.exerciseId,
-              durationSec: item.scheme.workSec,
-            });
-            if (s < item.scheme.sets - 1 && item.scheme.restSec > 0) {
+          for (let setIndex = 0; setIndex < item.scheme.sets; setIndex++) {
+            for (const side of sidesFor(ex)) {
+              steps.push({
+                kind: 'work',
+                blockIndex,
+                round: r,
+                itemIndex,
+                exerciseId: item.exerciseId,
+                durationSec: item.scheme.workSec,
+                side,
+              });
+            }
+            if (setIndex < item.scheme.sets - 1 && item.scheme.restSec > 0) {
               steps.push({
                 kind: 'rest',
                 blockIndex,
@@ -83,17 +93,20 @@ export function buildSteps(plan: WorkoutPlan, byId: ReadonlyMap<string, Exercise
             }
           }
         } else {
-          for (let s = 0; s < item.scheme.sets; s++) {
-            steps.push({
-              kind: 'work',
-              blockIndex,
-              round: r,
-              itemIndex,
-              exerciseId: item.exerciseId,
-              reps: item.scheme.reps,
-              durationSec: ex ? ex.tempoSecPerRep * item.scheme.reps : item.scheme.reps * 3,
-            });
-            if (s < item.scheme.sets - 1 && item.scheme.restSec > 0) {
+          for (let setIndex = 0; setIndex < item.scheme.sets; setIndex++) {
+            for (const side of sidesFor(ex)) {
+              steps.push({
+                kind: 'work',
+                blockIndex,
+                round: r,
+                itemIndex,
+                exerciseId: item.exerciseId,
+                reps: item.scheme.reps,
+                durationSec: ex ? ex.tempoSecPerRep * item.scheme.reps : item.scheme.reps * 3,
+                side,
+              });
+            }
+            if (setIndex < item.scheme.sets - 1 && item.scheme.restSec > 0) {
               steps.push({
                 kind: 'rest',
                 blockIndex,

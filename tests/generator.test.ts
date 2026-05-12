@@ -184,6 +184,20 @@ describe('generator: tabata structure', () => {
       }
     }
   });
+
+  it('avoids unilateral exercises so right-left expansion preserves tabata timing', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        style: 'tabata',
+        durationMin: 20,
+        equipment: ['none', 'dumbbells', 'bench'],
+      }),
+      LIB,
+      { seed: 42 },
+    );
+    const main = plan.blocks.find((b) => b.kind === 'main')!;
+    expect(main.items.every((item) => !EXERCISE_BY_ID.get(item.exerciseId)?.unilateral)).toBe(true);
+  });
 });
 
 describe('generator: determinism', () => {
@@ -209,5 +223,32 @@ describe('estimateDurationSec', () => {
   it('returns positive seconds for valid plan', () => {
     const plan = generatePlan(defaultConfig(), LIB, { seed: 5 });
     expect(estimateDurationSec(plan, EXERCISE_BY_ID)).toBeGreaterThan(0);
+  });
+
+  it('counts unilateral reps for both right and left sides', () => {
+    expect(
+      estimateDurationSec(
+        {
+          blocks: [
+            {
+              id: 'main',
+              kind: 'main',
+              label: 'Main',
+              rounds: 1,
+              interItemRestSec: 0,
+              interRoundRestSec: 0,
+              items: [
+                {
+                  id: 'row',
+                  exerciseId: 'single-arm-dumbbell-row',
+                  scheme: { kind: 'reps', reps: 10, sets: 1, restSec: 0 },
+                },
+              ],
+            },
+          ],
+        },
+        EXERCISE_BY_ID,
+      ),
+    ).toBe(60);
   });
 });

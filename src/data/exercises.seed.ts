@@ -361,7 +361,6 @@ export const SEED_EXERCISES: Exercise[] = [
     equipment: ['none'],
     difficulty: 'beginner',
     isWarmup: true,
-    unilateral: true,
     animationKey: 'bird-dog',
     cues: ['Slow and steady', 'Square hips'],
     instructions: ['On hands and knees.', 'Extend opposite arm and leg.', 'Return and switch.'],
