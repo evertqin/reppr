@@ -42,8 +42,6 @@ export interface PlayerState {
   elapsedMs: number;
   /** Countdown seconds remaining (3..1). */
   countdown: number;
-  /** Reps completed in the current work step (rep-based). */
-  repsDone: number;
   /** True once finished. */
   done: boolean;
 }
@@ -55,7 +53,7 @@ export type PlayerEvent =
   | { type: 'resume' }
   | { type: 'skipForward' }
   | { type: 'skipBack' }
-  | { type: 'repComplete' }
+  | { type: 'completeWork' }
   | { type: 'abort' }
   | { type: 'setSteps'; steps: Step[] };
 
@@ -159,7 +157,6 @@ export function initialState(steps: Step[]): PlayerState {
     stepIndex: 0,
     elapsedMs: 0,
     countdown: 0,
-    repsDone: 0,
     done: false,
   };
 }
@@ -173,7 +170,7 @@ function currentStepDurationMs(state: PlayerState): number {
 function advance(state: PlayerState): PlayerState {
   const next = state.stepIndex + 1;
   if (next >= state.steps.length) {
-    return { ...state, status: 'finished', done: true, elapsedMs: 0, repsDone: 0 };
+    return { ...state, status: 'finished', done: true, elapsedMs: 0 };
   }
   const nextStep = state.steps[next];
   return {
@@ -181,7 +178,6 @@ function advance(state: PlayerState): PlayerState {
     stepIndex: next,
     status: nextStep.kind === 'work' ? 'work' : 'rest',
     elapsedMs: 0,
-    repsDone: 0,
   };
 }
 
@@ -193,7 +189,6 @@ function rewind(state: PlayerState): PlayerState {
     stepIndex: prev,
     status: prevStep.kind === 'work' ? 'work' : 'rest',
     elapsedMs: 0,
-    repsDone: 0,
     done: false,
   };
 }
@@ -209,7 +204,6 @@ export function reducer(state: PlayerState, event: PlayerEvent): PlayerState {
         countdown: 3,
         stepIndex: 0,
         elapsedMs: 0,
-        repsDone: 0,
         done: false,
       };
     }
@@ -259,12 +253,10 @@ export function reducer(state: PlayerState, event: PlayerEvent): PlayerState {
     case 'skipBack':
       if (state.status === 'idle') return state;
       return rewind({ ...state, status: state.status === 'finished' ? 'work' : state.status });
-    case 'repComplete': {
+    case 'completeWork': {
       const step = state.steps[state.stepIndex];
       if (state.status !== 'work' || step?.kind !== 'work' || step.reps == null) return state;
-      const repsDone = state.repsDone + 1;
-      if (repsDone >= step.reps) return advance(state);
-      return { ...state, repsDone };
+      return advance(state);
     }
     case 'abort':
       return { ...initialState(state.steps), status: 'finished', done: true };

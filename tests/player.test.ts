@@ -93,7 +93,7 @@ describe('player reducer', () => {
     expect(s.stepIndex).toBe(0);
   });
 
-  it('repComplete advances when reps target reached', () => {
+  it('completeWork advances rep-based work with one action', () => {
     let s = reducer(init(), { type: 'start' });
     for (let i = 0; i < 30; i++) s = reducer(s, { type: 'tick', deltaMs: 100 });
     // find the first rep-based work step
@@ -105,7 +105,7 @@ describe('player reducer', () => {
     const cur = STEPS[s.stepIndex];
     if (cur.kind === 'work' && cur.reps != null) {
       const idx = s.stepIndex;
-      for (let i = 0; i < cur.reps; i++) s = reducer(s, { type: 'repComplete' });
+      s = reducer(s, { type: 'completeWork' });
       expect(s.stepIndex).toBe(idx + 1);
     }
   });

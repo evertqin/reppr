@@ -252,7 +252,7 @@ export function PlayerPage() {
           break;
         case 'r':
         case 'R':
-          send({ type: 'repComplete' });
+          send({ type: 'completeWork' });
           break;
         case 'Escape':
           if (window.confirm('Abort the workout?')) dispatch({ type: 'abort' });
@@ -377,14 +377,15 @@ export function PlayerPage() {
                 {step.reps != null ? (
                   <>
                     <div className="big-counter" aria-live="polite">
-                      {state.repsDone} / {step.reps}
+                      {step.reps} reps
                     </div>
+                    <div className="muted">Estimated {fmtTime(step.durationSec ?? 0)}</div>
                     <button
                       type="button"
                       className="primary big"
-                      onClick={() => dispatch({ type: 'repComplete' })}
+                      onClick={() => dispatch({ type: 'completeWork' })}
                     >
-                      Tap rep
+                      Done
                     </button>
                   </>
                 ) : (

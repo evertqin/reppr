@@ -175,6 +175,16 @@ function withinDifficulty(ex: Exercise, target: Difficulty): boolean {
   return DIFFICULTY_RANK[ex.difficulty] <= DIFFICULTY_RANK[target];
 }
 
+function preferredForDifficulty(ex: Exercise, target: Difficulty): boolean {
+  if (target === 'advanced') return ex.difficulty !== 'beginner';
+  if (target === 'intermediate') return ex.difficulty !== 'advanced';
+  return ex.difficulty === 'beginner';
+}
+
+function isPrimaryCore(ex: Exercise): boolean {
+  return ex.primaryMuscles.includes('core');
+}
+
 function pickWithFallback(rng: Rng, pool: Exercise[], count: number): Exercise[] {
   if (pool.length === 0) return [];
   if (pool.length >= count) return rng.shuffle(pool).slice(0, count);
@@ -636,6 +646,8 @@ function poolByEquipDifficulty(
 ): Exercise[] {
   const eqOnly = findExercises(library, { equipment: equip, warmup, cooldown });
   const filtered = eqOnly.filter((e) => withinDifficulty(e, difficulty));
+  const difficultyPreferred = filtered.filter((e) => preferredForDifficulty(e, difficulty));
+  if (difficultyPreferred.length >= 4) return difficultyPreferred;
   return filtered.length >= 4 ? filtered : eqOnly;
 }
 
@@ -656,8 +668,19 @@ export function generatePlan(
     : ['none', ...config.equipment];
 
   const rawMainPool = poolByEquipDifficulty(library, equip, config.difficulty, false, false);
+  const corePool = rawMainPool.filter(isPrimaryCore);
+  const nonCoreMainPool = rawMainPool.filter((exercise) => !isPrimaryCore(exercise));
   const tabataPool = rawMainPool.filter((exercise) => !exercise.unilateral);
-  const mainPool = config.style === 'tabata' && tabataPool.length >= 8 ? tabataPool : rawMainPool;
+  const tabataNonCorePool = nonCoreMainPool.filter((exercise) => !exercise.unilateral);
+  const mainPool = config.style === 'tabata'
+    ? tabataNonCorePool.length >= 8
+      ? tabataNonCorePool
+      : tabataPool.length >= 8
+        ? tabataPool
+        : rawMainPool
+    : nonCoreMainPool.length >= 4
+      ? nonCoreMainPool
+      : rawMainPool;
   const warmupPool = poolByEquipDifficulty(library, equip, config.difficulty, true, undefined);
   const cooldownPool = poolByEquipDifficulty(library, equip, config.difficulty, undefined, true);
 
@@ -666,6 +689,7 @@ export function generatePlan(
   // Short sessions skip warmup (and tabata always skips both); cooldown stays unless tabata.
   const includeWarmup = config.style !== 'tabata' && config.durationMin >= 15;
   const includeCooldown = config.style !== 'tabata';
+  const includeCore = config.style !== 'tabata' && config.durationMin >= 15 && corePool.length > 0;
 
   const warmupBlock: PlanBlock | null =
     includeWarmup && warmupPool.length > 0
@@ -698,6 +722,26 @@ export function generatePlan(
             id: rng.uuid(),
             exerciseId: e.id,
             scheme: { kind: 'time', workSec: 40, sets: 1, restSec: 0 } as Scheme,
+          })),
+        }
+      : null;
+
+  const coreCount = Math.min(config.durationMin < 45 ? 2 : 3, Math.max(2, corePool.length || 2));
+  const coreBlock: PlanBlock | null =
+    includeCore
+      ? {
+          id: rng.uuid(),
+          kind: 'core',
+          label: 'Core',
+          rounds: config.durationMin < 30 || config.style === 'straightSets' ? 1 : 2,
+          interItemRestSec: 20,
+          interRoundRestSec: 45,
+          items: pickWithFallback(rng, corePool, coreCount).map((e) => ({
+            id: rng.uuid(),
+            exerciseId: e.id,
+            scheme: e.defaultScheme.kind === 'time'
+              ? { kind: 'time', workSec: Math.max(20, e.defaultScheme.workSec), sets: 1, restSec: 0 } as Scheme
+              : { kind: 'reps', reps: Math.max(10, e.defaultScheme.reps), sets: 1, restSec: 0 } as Scheme,
           })),
         }
       : null;
@@ -747,10 +791,15 @@ export function generatePlan(
       ),
     }));
 
+  const mainConfig: ConfigInput = {
+    ...config,
+    bodyParts: config.bodyParts.filter((part) => part !== 'core'),
+  };
+
   const mainExercises = selectWithBodyweightRatio(
     rng,
     mainPool,
-    config,
+    mainConfig,
     exerciseCount,
   );
   let mainItems = buildItems(mainExercises);
@@ -769,6 +818,7 @@ export function generatePlan(
     const arr: PlanBlock[] = [];
     if (warmupBlock) arr.push(warmupBlock);
     arr.push(m);
+    if (coreBlock) arr.push(coreBlock);
     if (cooldownBlock) arr.push(cooldownBlock);
     return arr;
   };
@@ -788,7 +838,7 @@ export function generatePlan(
         // Pick a fresh exercise that (a) honors body-part targeting and
         // (b) keeps the bodyweight-vs-equipped ratio close to target.
         const usedIds = new Set(mainItems.map((it) => it.exerciseId));
-        const fresh = pickAdditionalExercise(rng, mainPool, config, mainItems, usedIds);
+        const fresh = pickAdditionalExercise(rng, mainPool, mainConfig, mainItems, usedIds);
         const next =
           fresh ?? mainExercises[mainItems.length % Math.max(1, mainExercises.length)];
         if (!next) break;

@@ -169,6 +169,55 @@ describe('generator: muscle targeting', () => {
   });
 });
 
+describe('generator: core isolation', () => {
+  it('places primary-core work in a dedicated Core block before cool-down', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        bodyParts: ['core', 'chest', 'quads'],
+        equipment: ['none', 'dumbbells'],
+        style: 'circuit',
+        difficulty: 'advanced',
+      }),
+      LIB,
+      { seed: 16 },
+    );
+    const coreIndex = plan.blocks.findIndex((block) => block.kind === 'core');
+    const cooldownIndex = plan.blocks.findIndex((block) => block.kind === 'cooldown');
+    expect(coreIndex).toBeGreaterThan(-1);
+    expect(cooldownIndex).toBeGreaterThan(coreIndex);
+
+    const main = plan.blocks.find((block) => block.kind === 'main')!;
+    expect(
+      main.items.every((item) => !EXERCISE_BY_ID.get(item.exerciseId)?.primaryMuscles.includes('core')),
+    ).toBe(true);
+
+    const core = plan.blocks[coreIndex];
+    expect(
+      core.items.every((item) => EXERCISE_BY_ID.get(item.exerciseId)?.primaryMuscles.includes('core')),
+    ).toBe(true);
+  });
+});
+
+describe('generator: advanced difficulty', () => {
+  it('prefers non-beginner main exercises for advanced plans', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        equipment: ['none', 'dumbbells', 'bench', 'pullupBar'],
+        style: 'straightSets',
+        difficulty: 'advanced',
+      }),
+      LIB,
+      { seed: 23 },
+    );
+    const main = plan.blocks.find((block) => block.kind === 'main')!;
+    expect(
+      main.items.every((item) => EXERCISE_BY_ID.get(item.exerciseId)?.difficulty !== 'beginner'),
+    ).toBe(true);
+  });
+});
+
 describe('generator: tabata structure', () => {
   it('produces 8 exercises x 8 rounds with 20/10', () => {
     const config = defaultConfig({ style: 'tabata' });

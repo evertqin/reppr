@@ -93,6 +93,8 @@ export function StickFigure({
   poseA,
   poseB,
   poses,
+  exercise,
+  side,
   repProgress,
   loop,
   scale = 1,
@@ -140,6 +142,39 @@ export function StickFigure({
   const headR = 14;
   const w = 200;
   const h = 300;
+  const usesDumbbells = exercise?.equipment.includes('dumbbells') ?? false;
+  const activeSide = side ?? (exercise?.unilateral ? 'right' : undefined);
+  const showLeftWeight = usesDumbbells && (!exercise?.unilateral || activeSide === 'left');
+  const showRightWeight = usesDumbbells && (!exercise?.unilateral || activeSide === 'right');
+  const weightColor = '#f8fafc';
+  const weightOutline = '#050816';
+
+  const handWeight = (hand: [number, number], isActive = true) => (
+    <g opacity={isActive ? 0.9 : 0.35}>
+      <line
+        x1={hand[0] - 9}
+        y1={hand[1]}
+        x2={hand[0] + 9}
+        y2={hand[1]}
+        stroke={weightOutline}
+        strokeWidth={9}
+        strokeLinecap="round"
+      />
+      <line
+        x1={hand[0] - 9}
+        y1={hand[1]}
+        x2={hand[0] + 9}
+        y2={hand[1]}
+        stroke={weightColor}
+        strokeWidth={4}
+        strokeLinecap="round"
+      />
+      <circle cx={hand[0] - 12} cy={hand[1]} r={7} fill={weightOutline} />
+      <circle cx={hand[0] + 12} cy={hand[1]} r={7} fill={weightOutline} />
+      <circle cx={hand[0] - 12} cy={hand[1]} r={4} fill={weightColor} />
+      <circle cx={hand[0] + 12} cy={hand[1]} r={4} fill={weightColor} />
+    </g>
+  );
 
   return (
     <svg
@@ -151,6 +186,22 @@ export function StickFigure({
       style={{ color: 'var(--accent)', display: 'block' }}
     >
       <line x1={0} y1={h - 8} x2={w} y2={h - 8} stroke={stroke} strokeWidth={2} opacity={0.25} />
+      {activeSide && (
+        <text
+          x={w - 18}
+          y={24}
+          textAnchor="middle"
+          fontSize={18}
+          fontWeight={700}
+          fill={weightColor}
+          stroke={weightOutline}
+          strokeWidth={4}
+          paintOrder="stroke"
+          opacity={0.7}
+        >
+          {activeSide === 'right' ? 'R' : 'L'}
+        </text>
+      )}
       <circle
         cx={pose.head[0]}
         cy={pose.head[1]}
@@ -194,6 +245,8 @@ export function StickFigure({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {showLeftWeight && handWeight(pose.lhand, activeSide == null || activeSide === 'left')}
+      {showRightWeight && handWeight(pose.rhand, activeSide == null || activeSide === 'right')}
       {/* legs */}
       <polyline
         points={`${pose.hip[0]},${pose.hip[1]} ${pose.lknee[0]},${pose.lknee[1]} ${pose.lfoot[0]},${pose.lfoot[1]}`}

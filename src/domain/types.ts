@@ -68,7 +68,7 @@ export const ALL_STYLES: Style[] = ['straightSets', 'circuit', 'hiit', 'tabata']
 export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 export const ALL_DIFFICULTIES: Difficulty[] = ['beginner', 'intermediate', 'advanced'];
 
-export type BlockKind = 'warmup' | 'main' | 'cooldown';
+export type BlockKind = 'warmup' | 'main' | 'core' | 'cooldown';
 
 export type Scheme =
   | { kind: 'reps'; reps: number; sets: number; restSec: number }

@@ -34,8 +34,12 @@ describe('seed library integrity', () => {
     expect(unilateralIds.sort()).toEqual([
       'bulgarian-split-squat',
       'concentration-curl',
+      'cross-rotational-row',
+      'double-db-glute-bridge-sl-iso-holds',
+      'half-kneeling-windmill-variation',
       'lunge',
       'reverse-lunge',
+      'reverse-lunge-double-curl',
       'single-arm-dumbbell-row',
     ]);
     expect(SEED_EXERCISES.find((ex) => ex.id === 'bird-dog')?.unilateral).toBeFalsy();

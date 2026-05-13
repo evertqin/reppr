@@ -56,7 +56,7 @@ The deploy script requires the [`gh`](https://cli.github.com/) CLI for watching 
 
 - Build a plan: pick duration, body parts, goal, equipment, style, difficulty → **Generate**.
 - Preview & edit: swap, remove, or reorder items in any block; expand any item to read step-by-step instructions.
-- Play it back: full-screen player with countdown, timer/rep counter, animated stick figure, audio beeps, and TTS cues. Two-column layout shows the animation on the left and how-to + cues on the right. Keyboard: Space pause, ←/→ skip, R rep, Esc abort.
+- Play it back: full-screen player with countdown, timer or one-tap set completion, animated stick figure, audio beeps, and TTS cues. Two-column layout shows the animation on the left and how-to + cues on the right. Keyboard: Space pause, ←/→ skip, R done, Esc abort.
 - Save & history: plans persist in `localStorage`; export/import JSON.
 - Extend the library: import portable enrichment files (JSON/CSV/XLSX) via Settings.
 

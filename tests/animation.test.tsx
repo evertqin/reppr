@@ -2,6 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ExerciseAnimation, hasRenderer } from '../src/animation/registry';
 import { SVG_RENDERERS } from '../src/animation/svg/renderers';
+import type { Exercise } from '../src/domain/types';
+
+const DUMBBELL_ROW: Exercise = {
+  id: 'test-row',
+  name: 'Test Row',
+  primaryMuscles: ['back'],
+  secondaryMuscles: ['biceps'],
+  equipment: ['dumbbells'],
+  difficulty: 'advanced',
+  unilateral: true,
+  animationKey: 'dumbbell-row',
+  cues: [],
+  instructions: [],
+  tempoSecPerRep: 3,
+  defaultScheme: { kind: 'reps', reps: 10, sets: 3, restSec: 60 },
+};
 
 describe('animation registry', () => {
   it('returns fallback for unknown key without throwing', () => {
@@ -31,5 +47,20 @@ describe('animation registry', () => {
         expect(html.length).toBeGreaterThan(100);
       }
     }
+  });
+
+  it('renders dumbbell and active-side metadata cues', () => {
+    const html = renderToStaticMarkup(
+      <ExerciseAnimation
+        animationKey="dumbbell-row"
+        exercise={DUMBBELL_ROW}
+        side="left"
+        ariaLabel="left row"
+      />,
+    );
+    expect(html).toContain('<svg');
+    expect(html).toContain('>L</text>');
+    expect(html).toContain('fill="#f8fafc"');
+    expect(html).toContain('stroke="#050816"');
   });
 });
