@@ -67,6 +67,8 @@ export function RestExercisePreview({
       <div className="rest-preview-demo">
         <ExerciseAnimation
           animationKey={exercise.animationKey}
+          exercise={exercise}
+          side={step.side}
           loop
           loopMs={loopMs}
           ariaLabel={`${displayName} demonstration`}
@@ -367,6 +369,8 @@ export function PlayerPage() {
               <div className="player-anim">
                 <ExerciseAnimation
                   animationKey={ex.animationKey}
+                  exercise={ex}
+                  side={step.side}
                   repProgress={repProgress}
                   loop={animLoop}
                   loopMs={animLoopMs}

@@ -169,6 +169,7 @@ function ExerciseDetail({ ex }: { ex: Exercise }) {
       <div className="library-anim">
         <ExerciseAnimation
           animationKey={ex.animationKey}
+          exercise={ex}
           loop
           loopMs={animLoopMs}
           ariaLabel={ex.name}

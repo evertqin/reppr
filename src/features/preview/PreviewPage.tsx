@@ -129,6 +129,7 @@ export function PreviewPage() {
                     {ex ? (
                       <ExerciseAnimation
                         animationKey={ex.animationKey}
+                        exercise={ex}
                         loop
                         scale={0.18}
                         ariaLabel=""

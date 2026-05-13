@@ -828,11 +828,12 @@ export function generatePlan(
   if (config.style !== 'tabata') {
     // Long sessions need room for more items; straight-sets with beginner sets
     // (low end of tier band) at 60 min would otherwise cap at 12 items and fall short.
+    const minItems = config.durationMin < 15 ? 2 : 3;
     const maxItems = config.durationMin >= 45 ? 18 : 12;
     let safety = 40;
     let est = estimateDurationSec({ blocks: blocksOf(mainBlock) }, byId);
     while (safety-- > 0) {
-      if (est > targetSec * 1.1 && mainItems.length > 3) {
+      if (est > targetSec * 1.1 && mainItems.length > minItems) {
         mainItems = mainItems.slice(0, mainItems.length - 1);
       } else if (est < targetSec * 0.9 && mainItems.length < maxItems) {
         // Pick a fresh exercise that (a) honors body-part targeting and

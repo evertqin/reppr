@@ -42,5 +42,8 @@ describe('RestExercisePreview', () => {
 
     expect(html).toContain('Single-Arm Dumbbell Row (R)');
     expect(html).toContain('Single-Arm Dumbbell Row (R) demonstration');
+    expect(html).toContain('>R</text>');
+    expect(html).toContain('fill="#f8fafc"');
+    expect(html).toContain('stroke="#050816"');
   });
 });

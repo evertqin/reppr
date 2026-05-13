@@ -34,13 +34,25 @@ describe('seed library integrity', () => {
     expect(unilateralIds.sort()).toEqual([
       'bulgarian-split-squat',
       'concentration-curl',
+      'contralateral-reverse-pause-lunge',
       'cross-rotational-row',
       'double-db-glute-bridge-sl-iso-holds',
       'half-kneeling-windmill-variation',
       'lunge',
+      'offset-hold-march',
       'reverse-lunge',
       'reverse-lunge-double-curl',
+      'single-arm-bent-arm-raise',
+      'single-arm-dumbbell-chest-press',
       'single-arm-dumbbell-row',
+      'single-arm-front-raise',
+      'single-arm-hammer-curl',
+      'single-arm-lateral-raise',
+      'single-arm-neutral-grip-row',
+      'single-arm-oh-tricep-extension',
+      'single-db-row',
+      'split-stance-rdl-rotational-row',
+      'unilateral-dumbbell-shoulder-press-variations',
     ]);
     expect(SEED_EXERCISES.find((ex) => ex.id === 'bird-dog')?.unilateral).toBeFalsy();
     expect(SEED_EXERCISES.find((ex) => ex.id === 'cat-cow')?.unilateral).toBeFalsy();
@@ -65,6 +77,58 @@ describe('seed library integrity', () => {
     const cool = findExercises(lib, { cooldown: true });
     expect(cool.every((e) => e.isCooldown)).toBe(true);
     expect(cool.length).toBeGreaterThan(0);
+  });
+
+  it('includes advanced giant-set source exercises', () => {
+    const giantSetIds = SEED_EXERCISES
+      .filter((ex) => ex.tags?.some((tag) => tag.startsWith('giant-set-')))
+      .map((ex) => ex.id);
+    expect(giantSetIds).toEqual(expect.arrayContaining([
+      'single-db-row',
+      'alternating-low-fly',
+      'outer-full-range-curl',
+      'dumbbell-skull-crusher',
+      'standing-dumbbell-shoulder-press',
+      'kneeling-rotational-curl',
+      'single-arm-lateral-raise',
+      'rotational-chest-press',
+      'single-arm-neutral-grip-row',
+      'single-arm-oh-tricep-extension',
+      'single-arm-dumbbell-chest-press',
+      'single-arm-hammer-curl',
+      'single-arm-bent-arm-raise',
+      'single-arm-front-raise',
+    ]));
+  });
+
+  it('includes vitalize day 5 full-body and core source exercises', () => {
+    const dayFiveIds = SEED_EXERCISES
+      .filter((ex) => ex.tags?.includes('vitalize-day-5'))
+      .map((ex) => ex.id);
+    expect(dayFiveIds).toEqual(expect.arrayContaining([
+      'one-and-quarter-suitcase-squat',
+      'pause-dumbbell-pullover',
+      'alternating-dumbbell-chest-press',
+      'one-and-quarter-db-hamstring-curl',
+      'alternating-curl-to-iso-hold',
+      'lying-oh-dumbbell-tricep-extension',
+      'heavy-dumbbell-glute-bridge',
+      'heavy-dumbbell-sumo-squat',
+      'dumbbell-sumo-deadlift',
+      'unilateral-dumbbell-shoulder-press-variations',
+      'contralateral-reverse-pause-lunge',
+      'heavy-dumbbell-hammer-curl',
+      'split-stance-rdl-rotational-row',
+      'heavy-dumbbell-lateral-raise',
+      'dumbbell-upright-row',
+      'heavy-dumbbell-calf-raise',
+      'walkout-to-plank-dip',
+      'elevated-spiderman-crunch',
+      'plank-drag-through',
+      'offset-hold-march',
+      'dumbbell-halo',
+      'alternating-db-standing-crunch',
+    ]));
   });
 });
 
