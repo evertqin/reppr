@@ -274,7 +274,7 @@ describe('estimateDurationSec', () => {
     expect(estimateDurationSec(plan, EXERCISE_BY_ID)).toBeGreaterThan(0);
   });
 
-  it('counts unilateral reps for both right and left sides', () => {
+  it('counts unilateral reps for both right and left sides plus side rest', () => {
     expect(
       estimateDurationSec(
         {
@@ -290,7 +290,7 @@ describe('estimateDurationSec', () => {
                 {
                   id: 'row',
                   exerciseId: 'single-arm-dumbbell-row',
-                  scheme: { kind: 'reps', reps: 10, sets: 1, restSec: 0 },
+                  scheme: { kind: 'reps', reps: 10, sets: 1, restSec: 40 },
                 },
               ],
             },
@@ -298,6 +298,6 @@ describe('estimateDurationSec', () => {
         },
         EXERCISE_BY_ID,
       ),
-    ).toBe(60);
+    ).toBe(80);
   });
 });

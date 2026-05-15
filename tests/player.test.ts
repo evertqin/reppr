@@ -124,13 +124,39 @@ describe('player reducer', () => {
     expect(s.done).toBe(true);
   });
 
-  it('expands unilateral work into right then left with rest after both sides', () => {
+  it('expands unilateral work into right then left with half-rest between sides', () => {
     const steps = buildSteps(unilateralPlan, BY_ID);
-    expect(steps).toHaveLength(5);
+    expect(steps).toHaveLength(7);
     expect(steps[0]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'right' });
-    expect(steps[1]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
-    expect(steps[2]).toMatchObject({ kind: 'rest', durationSec: 60 });
-    expect(steps[3]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'right' });
-    expect(steps[4]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
+    expect(steps[1]).toMatchObject({ kind: 'rest', scope: 'side', durationSec: 30 });
+    expect(steps[2]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
+    expect(steps[3]).toMatchObject({ kind: 'rest', scope: 'item', durationSec: 60 });
+    expect(steps[4]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'right' });
+    expect(steps[5]).toMatchObject({ kind: 'rest', scope: 'side', durationSec: 30 });
+    expect(steps[6]).toMatchObject({ kind: 'work', exerciseId: 'single-arm-dumbbell-row', side: 'left' });
+  });
+
+  it('uses half of block rest between sides when item rest is zero', () => {
+    const steps = buildSteps(
+      {
+        ...unilateralPlan,
+        blocks: [
+          {
+            ...unilateralPlan.blocks[0],
+            interItemRestSec: 20,
+            items: [
+              {
+                id: 'row',
+                exerciseId: 'single-arm-dumbbell-row',
+                scheme: { kind: 'reps', reps: 10, sets: 1, restSec: 0 },
+              },
+            ],
+          },
+        ],
+      },
+      BY_ID,
+    );
+    expect(steps).toHaveLength(3);
+    expect(steps[1]).toMatchObject({ kind: 'rest', scope: 'side', durationSec: 10 });
   });
 });

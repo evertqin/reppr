@@ -135,14 +135,20 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-function exerciseDurationSec(item: PlanItem, ex: Exercise | undefined): number {
+function exerciseDurationSec(
+  item: PlanItem,
+  ex: Exercise | undefined,
+  blockInterItemRestSec = 0,
+): number {
   const s = item.scheme;
   const sideMultiplier = ex?.unilateral ? 2 : 1;
+  const regularRestSec = s.restSec > 0 ? s.restSec : blockInterItemRestSec;
+  const sideTransitionRestSec = ex?.unilateral ? Math.round(regularRestSec / 2) * s.sets : 0;
   if (s.kind === 'time') {
-    return s.workSec * s.sets * sideMultiplier + s.restSec * Math.max(0, s.sets - 1);
+    return s.workSec * s.sets * sideMultiplier + sideTransitionRestSec + s.restSec * Math.max(0, s.sets - 1);
   }
   const tempo = ex?.tempoSecPerRep ?? 3;
-  return s.reps * tempo * s.sets * sideMultiplier + s.restSec * Math.max(0, s.sets - 1);
+  return s.reps * tempo * s.sets * sideMultiplier + sideTransitionRestSec + s.restSec * Math.max(0, s.sets - 1);
 }
 
 /**
@@ -156,7 +162,7 @@ export function estimateDurationSec(
   for (const block of plan.blocks) {
     let perRound = 0;
     for (const item of block.items) {
-      perRound += exerciseDurationSec(item, byId.get(item.exerciseId));
+      perRound += exerciseDurationSec(item, byId.get(item.exerciseId), block.interItemRestSec);
     }
     perRound += Math.max(0, block.items.length - 1) * block.interItemRestSec;
     let blockSec = perRound * block.rounds;

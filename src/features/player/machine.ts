@@ -25,8 +25,8 @@ export interface RestStep {
   kind: 'rest';
   blockIndex: number;
   round: number;
-  /** "inter-item" rest follows an item; "inter-round" rest follows the last item of a round. */
-  scope: 'item' | 'round' | 'block';
+  /** Side rest separates right/left work; item/round/block rests separate larger chunks. */
+  scope: 'side' | 'item' | 'round' | 'block';
   durationSec: number;
 }
 
@@ -61,56 +61,84 @@ export function buildSteps(plan: WorkoutPlan, byId: ReadonlyMap<string, Exercise
   const steps: Step[] = [];
   const sidesFor = (exercise: Exercise | undefined): (WorkSide | undefined)[] =>
     exercise?.unilateral ? ['right', 'left'] : [undefined];
+  const sideRestSec = (item: PlanItem, blockInterItemRestSec: number, exercise: Exercise | undefined): number => {
+    if (!exercise?.unilateral) return 0;
+    const regularRestSec = item.scheme.restSec > 0 ? item.scheme.restSec : blockInterItemRestSec;
+    return Math.round(regularRestSec / 2);
+  };
 
   plan.blocks.forEach((block, blockIndex) => {
     for (let r = 1; r <= block.rounds; r++) {
       block.items.forEach((item: PlanItem, itemIndex) => {
         const ex = byId.get(item.exerciseId);
+        const transitionRestSec = sideRestSec(item, block.interItemRestSec, ex);
         if (item.scheme.kind === 'time') {
+          const scheme = item.scheme;
           // Each set within the item becomes one work + within-item rest pair.
-          for (let setIndex = 0; setIndex < item.scheme.sets; setIndex++) {
-            for (const side of sidesFor(ex)) {
+          for (let setIndex = 0; setIndex < scheme.sets; setIndex++) {
+            const sides = sidesFor(ex);
+            sides.forEach((side, sideIndex) => {
               steps.push({
                 kind: 'work',
                 blockIndex,
                 round: r,
                 itemIndex,
                 exerciseId: item.exerciseId,
-                durationSec: item.scheme.workSec,
+                durationSec: scheme.workSec,
                 side,
               });
-            }
-            if (setIndex < item.scheme.sets - 1 && item.scheme.restSec > 0) {
+              if (sideIndex < sides.length - 1 && transitionRestSec > 0) {
+                steps.push({
+                  kind: 'rest',
+                  blockIndex,
+                  round: r,
+                  scope: 'side',
+                  durationSec: transitionRestSec,
+                });
+              }
+            });
+            if (setIndex < scheme.sets - 1 && scheme.restSec > 0) {
               steps.push({
                 kind: 'rest',
                 blockIndex,
                 round: r,
                 scope: 'item',
-                durationSec: item.scheme.restSec,
+                durationSec: scheme.restSec,
               });
             }
           }
         } else {
-          for (let setIndex = 0; setIndex < item.scheme.sets; setIndex++) {
-            for (const side of sidesFor(ex)) {
+          const scheme = item.scheme;
+          for (let setIndex = 0; setIndex < scheme.sets; setIndex++) {
+            const sides = sidesFor(ex);
+            sides.forEach((side, sideIndex) => {
               steps.push({
                 kind: 'work',
                 blockIndex,
                 round: r,
                 itemIndex,
                 exerciseId: item.exerciseId,
-                reps: item.scheme.reps,
-                durationSec: ex ? ex.tempoSecPerRep * item.scheme.reps : item.scheme.reps * 3,
+                reps: scheme.reps,
+                durationSec: ex ? ex.tempoSecPerRep * scheme.reps : scheme.reps * 3,
                 side,
               });
-            }
-            if (setIndex < item.scheme.sets - 1 && item.scheme.restSec > 0) {
+              if (sideIndex < sides.length - 1 && transitionRestSec > 0) {
+                steps.push({
+                  kind: 'rest',
+                  blockIndex,
+                  round: r,
+                  scope: 'side',
+                  durationSec: transitionRestSec,
+                });
+              }
+            });
+            if (setIndex < scheme.sets - 1 && scheme.restSec > 0) {
               steps.push({
                 kind: 'rest',
                 blockIndex,
                 round: r,
                 scope: 'item',
-                durationSec: item.scheme.restSec,
+                durationSec: scheme.restSec,
               });
             }
           }
