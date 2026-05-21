@@ -249,6 +249,28 @@ describe('generator: tabata structure', () => {
   });
 });
 
+describe('generator: time-based styles', () => {
+  it('keeps every HIIT work item time-based, including core', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        style: 'hiit',
+        difficulty: 'advanced',
+        equipment: ['none', 'dumbbells', 'bench'],
+      }),
+      LIB,
+      { seed: 16 },
+    );
+
+    expect(plan.blocks.some((block) => block.kind === 'core')).toBe(true);
+    for (const block of plan.blocks) {
+      for (const item of block.items) {
+        expect(item.scheme.kind).toBe('time');
+      }
+    }
+  });
+});
+
 describe('generator: determinism', () => {
   it('same seed produces same plan', () => {
     const config = defaultConfig();

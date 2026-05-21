@@ -732,6 +732,16 @@ export function generatePlan(
         }
       : null;
 
+  const buildCoreScheme = (exercise: Exercise): Scheme => {
+    if (template.isTime) {
+      return { kind: 'time', workSec: Math.max(20, template.workSec ?? 30), sets: 1, restSec: 0 };
+    }
+    if (exercise.defaultScheme.kind === 'time') {
+      return { kind: 'time', workSec: Math.max(20, exercise.defaultScheme.workSec), sets: 1, restSec: 0 };
+    }
+    return { kind: 'reps', reps: Math.max(10, exercise.defaultScheme.reps), sets: 1, restSec: 0 };
+  };
+
   const coreCount = Math.min(config.durationMin < 45 ? 2 : 3, Math.max(2, corePool.length || 2));
   const coreBlock: PlanBlock | null =
     includeCore
@@ -745,9 +755,7 @@ export function generatePlan(
           items: pickWithFallback(rng, corePool, coreCount).map((e) => ({
             id: rng.uuid(),
             exerciseId: e.id,
-            scheme: e.defaultScheme.kind === 'time'
-              ? { kind: 'time', workSec: Math.max(20, e.defaultScheme.workSec), sets: 1, restSec: 0 } as Scheme
-              : { kind: 'reps', reps: Math.max(10, e.defaultScheme.reps), sets: 1, restSec: 0 } as Scheme,
+            scheme: buildCoreScheme(e),
           })),
         }
       : null;
