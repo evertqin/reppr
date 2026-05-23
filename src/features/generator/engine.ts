@@ -14,7 +14,7 @@ import type {
   Style,
   WorkoutPlan,
 } from '../../domain/types';
-import { MUSCLE_GROUP_TIER } from '../../domain/types';
+import { ALL_MUSCLE_GROUPS, MUSCLE_GROUP_TIER } from '../../domain/types';
 import { findExercises } from '../../data/exercises';
 import { createRng, type Rng } from '../../lib/rng';
 
@@ -294,6 +294,13 @@ function avoidConsecutiveSameMuscle(rng: Rng, exercises: Exercise[]): Exercise[]
   return out;
 }
 
+function matchesAnyBodyPart(ex: Exercise, bodyParts: MuscleGroup[]): boolean {
+  if (bodyParts.length === 0) return true;
+  return bodyParts.some(
+    (m) => ex.primaryMuscles.includes(m) || ex.secondaryMuscles.includes(m),
+  );
+}
+
 function selectMain(
   rng: Rng,
   pool: Exercise[],
@@ -309,28 +316,35 @@ function selectMain(
       pool.filter(
         (e) =>
           e.primaryMuscles.includes(m) ||
-          e.secondaryMuscles.includes(m) ||
-          e.primaryMuscles.includes('fullBody'),
+          e.secondaryMuscles.includes(m),
       ),
     ),
   );
   const cursors = bodyParts.map(() => 0);
   const picked: Exercise[] = [];
+  const usedIds = new Set<string>();
+  const uniqueAvailable = new Set(buckets.flat().map((exercise) => exercise.id));
+  const uniqueTarget = Math.min(count, uniqueAvailable.size);
 
   // Phase 1: distinct round-robin from each bucket.
   let progressed = true;
-  while (picked.length < count && progressed) {
+  while (picked.length < uniqueTarget && progressed) {
     progressed = false;
     for (let b = 0; b < buckets.length && picked.length < count; b++) {
+      while (cursors[b] < buckets[b].length && usedIds.has(buckets[b][cursors[b]].id)) {
+        cursors[b]++;
+      }
       if (cursors[b] < buckets[b].length) {
-        picked.push(buckets[b][cursors[b]]);
+        const next = buckets[b][cursors[b]];
+        picked.push(next);
+        usedIds.add(next.id);
         cursors[b]++;
         progressed = true;
       }
     }
   }
 
-  // Phase 2: with repeats from non-empty buckets to maintain body-part majority.
+  // Phase 2: with repeats only after unique focused options are exhausted.
   while (picked.length < count) {
     let added = false;
     for (let b = 0; b < buckets.length && picked.length < count; b++) {
@@ -375,6 +389,28 @@ function exerciseBodyParts(ex: Exercise): MuscleGroup[] {
   return [...ex.primaryMuscles, ...ex.secondaryMuscles];
 }
 
+function loadOrder(ex: Exercise | undefined): number {
+  if (!ex) return 0;
+  const name = ex.name.toLowerCase();
+  const usesLoad = ex.equipment.some((equipment) => equipment !== 'none');
+  if (!usesLoad) return 0;
+  if (name.includes('heavy')) return 4;
+  const primary = ex.primaryMuscles[0] ?? 'fullBody';
+  const tier = MUSCLE_GROUP_TIER[primary];
+  if (tier === 'big') return 4;
+  if (primary === 'calves') return 3;
+  if (name.includes('raise') || name.includes('curl') || name.includes('kickback')) return 1;
+  if (tier === 'small') return 1;
+  return 2;
+}
+
+function orderForWeightChanges(items: PlanItem[], byId: ReadonlyMap<string, Exercise>): PlanItem[] {
+  return items
+    .map((item, index) => ({ item, index, load: loadOrder(byId.get(item.exerciseId)) }))
+    .sort((a, b) => b.load - a.load || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 /**
  * When the user picks bodyParts spanning multiple tiers (e.g. chest + biceps),
  * allocate counts per tier (big: 2-3, small: 1-2, aux: fills the rest), then
@@ -398,8 +434,7 @@ function selectByMuscleTierPriority(
   for (const ex of pool) {
     for (const tier of presentTiers) {
       if (
-        tierMap[tier].some((m) => exerciseBodyParts(ex).includes(m)) ||
-        ex.primaryMuscles.includes('fullBody')
+        tierMap[tier].some((m) => exerciseBodyParts(ex).includes(m))
       ) {
         tierPool[tier].push(ex);
         break;
@@ -502,14 +537,7 @@ function selectWithBodyweightRatio(
 
   // Narrow to exercises that match the requested body parts (if any) so the
   // ratio split happens within the focused subset and doesn't dilute targeting.
-  const matchesBodyPart = (e: Exercise) =>
-    config.bodyParts.length === 0 ||
-    config.bodyParts.some(
-      (m) =>
-        e.primaryMuscles.includes(m) ||
-        e.secondaryMuscles.includes(m) ||
-        e.primaryMuscles.includes('fullBody'),
-    );
+  const matchesBodyPart = (e: Exercise) => matchesAnyBodyPart(e, config.bodyParts);
   const focused = config.bodyParts.length === 0 ? pool : pool.filter(matchesBodyPart);
 
   const onlyBodyweight = config.equipment.length === 1 && config.equipment[0] === 'none';
@@ -565,14 +593,7 @@ function pickAdditionalExercise(
   current: PlanItem[],
   usedIds: Set<string>,
 ): Exercise | undefined {
-  const matchesBodyPart = (e: Exercise) =>
-    config.bodyParts.length === 0 ||
-    config.bodyParts.some(
-      (m) =>
-        e.primaryMuscles.includes(m) ||
-        e.secondaryMuscles.includes(m) ||
-        e.primaryMuscles.includes('fullBody'),
-    );
+  const matchesBodyPart = (e: Exercise) => matchesAnyBodyPart(e, config.bodyParts);
 
   const ratio = clamp(config.bodyweightRatio ?? 0.5, 0, 1);
   const onlyBodyweight = config.equipment.length === 1 && config.equipment[0] === 'none';
@@ -631,13 +652,29 @@ function configHash(c: ConfigInput): number {
   return h >>> 0;
 }
 
+const LOWER_BODY_PARTS = new Set<MuscleGroup>(['quads', 'hamstrings', 'glutes', 'calves']);
+const UPPER_BODY_PARTS = new Set<MuscleGroup>(['chest', 'back', 'shoulders', 'biceps', 'triceps']);
+
+function bodyPartLabel(bodyParts: MuscleGroup[]): string {
+  const unique = Array.from(new Set(bodyParts));
+  if (unique.length === 0) return 'full body';
+  if (ALL_MUSCLE_GROUPS.every((part) => unique.includes(part))) return 'full body';
+  if (unique.length <= 3) return unique.join('+');
+
+  const hasCore = unique.includes('core');
+  const withoutCore = unique.filter((part) => part !== 'core');
+  if (withoutCore.length > 0 && withoutCore.every((part) => LOWER_BODY_PARTS.has(part))) {
+    return hasCore ? 'lower body+core' : 'lower body';
+  }
+  if (withoutCore.length > 0 && withoutCore.every((part) => UPPER_BODY_PARTS.has(part))) {
+    return hasCore ? 'upper body+core' : 'upper body';
+  }
+  return unique.join('+');
+}
+
 function planName(c: ConfigInput): string {
   const parts: string[] = [`${c.durationMin}m`];
-  if (c.bodyParts.length > 0 && c.bodyParts.length <= 3) {
-    parts.push(c.bodyParts.join('+'));
-  } else {
-    parts.push('full body');
-  }
+  parts.push(bodyPartLabel(c.bodyParts));
   parts.push(c.style);
   parts.push(c.goal);
   return parts.join(' · ');
@@ -865,6 +902,9 @@ export function generatePlan(
       est = estimateDurationSec({ blocks: blocksOf(mainBlock) }, byId);
     }
   }
+
+  mainItems = orderForWeightChanges(mainItems, byId);
+  mainBlock = { ...mainBlock, items: mainItems };
 
   const blocks = blocksOf(mainBlock);
   const estimated = estimateDurationSec({ blocks }, byId);

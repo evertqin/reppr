@@ -6,6 +6,7 @@ import type {
   ConfigInput,
   Difficulty,
   Goal,
+  Exercise,
   Style,
 } from '../src/domain/types';
 
@@ -144,6 +145,22 @@ describe('generator: muscle tier priority (big/small/aux)', () => {
 });
 
 describe('generator: muscle targeting', () => {
+  it('names broad lower-body plus core focus without calling it full body', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        bodyParts: ['quads', 'hamstrings', 'glutes', 'calves', 'core'],
+        equipment: ['none', 'dumbbells'],
+        style: 'circuit',
+      }),
+      LIB,
+      { seed: 19 },
+    );
+
+    expect(plan.name).toContain('lower body+core');
+    expect(plan.name).not.toContain('full body');
+  });
+
   it('chest-focused plan has majority chest hits in main block', () => {
     const config = defaultConfig({
       bodyParts: ['chest'],
@@ -166,6 +183,63 @@ describe('generator: muscle targeting', () => {
       }
     }
     expect(hits / total).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('does not duplicate main exercises while focused options remain unused', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 45,
+        bodyParts: ['quads', 'hamstrings', 'glutes', 'calves', 'core'],
+        equipment: ['none', 'dumbbells', 'bench', 'barbell'],
+        style: 'circuit',
+        difficulty: 'advanced',
+      }),
+      LIB,
+      { seed: 31 },
+    );
+    const main = plan.blocks.find((block) => block.kind === 'main')!;
+    const ids = main.items.map((item) => item.exerciseId);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('generator: exercise ordering', () => {
+  const bigMuscles = new Set(['chest', 'back', 'quads', 'hamstrings', 'glutes', 'fullBody']);
+  const smallMuscles = new Set(['shoulders', 'biceps', 'triceps']);
+
+  function loadRank(exercise: Exercise): number {
+    if (exercise.equipment.every((equipment) => equipment === 'none')) return 0;
+    const name = exercise.name.toLowerCase();
+    const primary = exercise.primaryMuscles[0] ?? 'fullBody';
+    if (name.includes('heavy')) return 4;
+    if (bigMuscles.has(primary)) return 4;
+    if (primary === 'calves') return 3;
+    if (name.includes('raise') || name.includes('curl') || name.includes('kickback')) return 1;
+    if (smallMuscles.has(primary)) return 1;
+    return 2;
+  }
+
+  it('groups loaded main exercises from heavier to lighter dumbbell work', () => {
+    const plan = generatePlan(
+      defaultConfig({
+        durationMin: 30,
+        bodyParts: ['chest', 'shoulders', 'triceps', 'quads'],
+        equipment: ['none', 'dumbbells', 'bench'],
+        bodyweightRatio: 0,
+        style: 'circuit',
+        difficulty: 'advanced',
+      }),
+      LIB,
+      { seed: 41 },
+    );
+    const main = plan.blocks.find((block) => block.kind === 'main')!;
+    const ranks = main.items
+      .map((item) => loadRank(EXERCISE_BY_ID.get(item.exerciseId)!))
+      .filter((rank) => rank > 0);
+
+    expect(ranks.length).toBeGreaterThan(1);
+    expect(ranks).toEqual([...ranks].sort((a, b) => b - a));
   });
 });
 
