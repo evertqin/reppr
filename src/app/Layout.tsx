@@ -16,9 +16,8 @@ export function Layout() {
     <div className="layout">
       <nav className="nav" aria-label="Main">
         <span className="brand">reppr</span>
-        <NavLink to="/" end>
-          Build
-        </NavLink>
+        <NavLink to="/" end>My Program</NavLink>
+        <NavLink to="/quick">Quick Workout</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/history">History</NavLink>
         <NavLink to="/settings">Settings</NavLink>

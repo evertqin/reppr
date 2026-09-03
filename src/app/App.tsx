@@ -5,6 +5,7 @@ import { PlayerPage } from '../features/player/PlayerPage';
 import { HistoryPage } from '../features/history/HistoryPage';
 import { LibraryPage } from '../features/library/LibraryPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { MyProgramPage } from '../features/program/MyProgramPage';
 import { Layout } from './Layout';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -15,6 +16,14 @@ export function App() {
         <Route element={<Layout />}>
           <Route
             index
+            element={
+              <ErrorBoundary>
+                <MyProgramPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="quick"
             element={
               <ErrorBoundary>
                 <ConfigPage />

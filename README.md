@@ -54,7 +54,8 @@ The deploy script requires the [`gh`](https://cli.github.com/) CLI for watching 
 
 ## What you can do
 
-- Build a plan: pick duration, body parts, goal, equipment, style, difficulty → **Generate**.
+- My Program: run a structured 12-week hypertrophy workflow with deterministic double progression, set-level rep logging, and week/session tracking.
+- Build a plan: pick duration, body parts, goal, equipment, style, difficulty → **Generate** (Quick Workout).
 - Preview & edit: swap, remove, or reorder items in any block; expand any item to read step-by-step instructions.
 - Play it back: full-screen player with countdown, timer or one-tap set completion, animated stick figure, audio beeps, and TTS cues. Two-column layout shows the animation on the left and how-to + cues on the right. Keyboard: Space pause, ←/→ skip, R done, Esc abort.
 - Save & history: plans persist in `localStorage`; export/import JSON.
@@ -68,6 +69,7 @@ src/
   domain/         shared TS types
   data/           seed library + enrichment merge
   features/
+    program/      structured 12-week hypertrophy model + dashboard + progress store
     config/       configuration form + draft store
     generator/    pure rule-based plan engine (engine.ts)
     preview/      editable plan preview

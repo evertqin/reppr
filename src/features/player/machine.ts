@@ -16,7 +16,14 @@ export interface WorkStep {
   exerciseId: string;
   /** Either reps target or seconds target. */
   reps?: number;
+  repRange?: { min: number; max: number };
   durationSec?: number;
+  setIndex?: number;
+  totalSets?: number;
+  prescribedWeightLb?: number;
+  previousReps?: number[];
+  nextSessionTarget?: string;
+  recommendation?: string;
   /** Side-specific work for unilateral exercises. Always scheduled right, then left. */
   side?: WorkSide;
 }
@@ -85,6 +92,8 @@ export function buildSteps(plan: WorkoutPlan, byId: ReadonlyMap<string, Exercise
                 itemIndex,
                 exerciseId: item.exerciseId,
                 durationSec: scheme.workSec,
+                setIndex: setIndex + 1,
+                totalSets: scheme.sets,
                 side,
               });
               if (sideIndex < sides.length - 1 && transitionRestSec > 0) {
@@ -118,8 +127,15 @@ export function buildSteps(plan: WorkoutPlan, byId: ReadonlyMap<string, Exercise
                 round: r,
                 itemIndex,
                 exerciseId: item.exerciseId,
-                reps: scheme.reps,
+                reps: item.programmed?.repRange.min ?? scheme.reps,
+                repRange: item.programmed?.repRange,
                 durationSec: ex ? ex.tempoSecPerRep * scheme.reps : scheme.reps * 3,
+                setIndex: setIndex + 1,
+                totalSets: scheme.sets,
+                prescribedWeightLb: item.programmed?.prescribedWeightLb,
+                previousReps: item.programmed?.previousReps,
+                nextSessionTarget: item.programmed?.nextSessionTarget,
+                recommendation: item.programmed?.recommendation,
                 side,
               });
               if (sideIndex < sides.length - 1 && transitionRestSec > 0) {
