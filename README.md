@@ -6,6 +6,8 @@ Client-side workout plan generator and follow-along player. React + Vite + TypeS
 
 **Live: https://evertqin.github.io/reppr/**
 
+This project is designed to stay privacy-first by keeping all workout generation and playback logic in your browser.
+
 ## Quick start
 
 ```sh
