@@ -9,6 +9,7 @@ import { playBeep, primeAudio } from '../../audio/beeps';
 import { createSpeaker } from '../../audio/speech';
 import { useTicker } from './useTicker';
 import { useWakeLock } from './useWakeLock';
+import { useProgramStore } from '../program/store';
 import {
   buildSteps,
   initialState,
@@ -18,6 +19,7 @@ import {
   type WorkSide,
 } from './machine';
 import type { Exercise } from '../../domain/types';
+import type { ProgramExerciseLog, ProgramSessionLog } from '../program/model';
 
 function sideLabel(side: WorkSide | undefined): string | null {
   if (!side) return null;
@@ -42,8 +44,19 @@ function fmtTime(sec: number): string {
 
 function stepSummary(step: Extract<Step, { kind: 'work' }> | null): string | null {
   if (!step) return null;
+  if (step.repRange) return `${step.repRange.min}-${step.repRange.max} reps`;
   if (step.reps != null) return `${step.reps} reps`;
   return `${step.durationSec ?? 0} seconds`;
+}
+
+function weightLabel(weightLb: number | undefined): string {
+  if (!weightLb || weightLb <= 0) return 'Bodyweight';
+  return `${weightLb} lb each`;
+}
+
+function repLogLabel(values: Array<number | null>): string {
+  if (values.length === 0) return 'No logged sets';
+  return values.map((value) => (value == null ? '_' : String(value))).join(' / ');
 }
 
 export function RestExercisePreview({
@@ -106,6 +119,8 @@ export function PlayerPage() {
   const navigate = useNavigate();
   const plan = usePlansStore((s) => s.plans.find((p) => p.id === planId));
   const appendSession = usePlansStore((s) => s.appendSession);
+  const appendProgramLog = useProgramStore((s) => s.appendLog);
+  const advancePrimarySession = useProgramStore((s) => s.advancePrimarySession);
 
   const lib = useMemo(() => buildLibrary(activeUserEnrichments()), []);
   const byId = useMemo(() => new Map(lib.map((e) => [e.id, e])), [lib]);
@@ -113,6 +128,7 @@ export function PlayerPage() {
 
   const [state, dispatch] = useReducer(reducer, steps, initialState);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [repLogByStep, setRepLogByStep] = useState<Record<number, number | null>>({});
 
   const beepsEnabled = useSettingsStore((s) => s.beepsEnabled);
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled);
@@ -210,6 +226,7 @@ export function PlayerPage() {
 
   useEffect(() => {
     dispatch({ type: 'setSteps', steps });
+    setRepLogByStep({});
   }, [steps]);
 
   useTicker(
@@ -230,9 +247,71 @@ export function PlayerPage() {
         durationActualSec: dur,
         skippedItemIds: [],
       });
+      if (plan.programSession) {
+        const exerciseLogs: ProgramExerciseLog[] = [];
+        const skippedExerciseIds: string[] = [];
+        plan.blocks.forEach((block, blockIndex) => {
+          block.items.forEach((item, itemIndex) => {
+            if (!item.programmed) return;
+            const stepIndexes = state.steps
+              .map((stepItem, idx) => ({ stepItem, idx }))
+              .filter(
+                ({ stepItem }) =>
+                  stepItem.kind === 'work' &&
+                  stepItem.blockIndex === blockIndex &&
+                  stepItem.itemIndex === itemIndex &&
+                  stepItem.reps != null,
+              )
+              .map(({ idx }) => idx);
+            const repsCompleted = stepIndexes.map((idx) => repLogByStep[idx] ?? null);
+            const skippedSetIndexes = repsCompleted
+              .map((value, idx) => ({ value, idx }))
+              .filter(({ value }) => value == null)
+              .map(({ idx }) => idx);
+            if (repsCompleted.every((value) => value == null)) {
+              skippedExerciseIds.push(item.exerciseId);
+            }
+            const firstStep = stepIndexes
+              .map((idx) => state.steps[idx])
+              .find((stepItem): stepItem is Extract<Step, { kind: 'work' }> => stepItem.kind === 'work');
+            exerciseLogs.push({
+              exerciseId: item.exerciseId,
+              targetWeightLb: firstStep?.prescribedWeightLb ?? item.programmed.prescribedWeightLb,
+              repRange: firstStep?.repRange ?? item.programmed.repRange,
+              setsTarget: firstStep?.totalSets ?? item.scheme.sets,
+              unilateral: !!stepIndexes
+                .map((idx) => state.steps[idx])
+                .find(
+                  (stepItem): stepItem is Extract<Step, { kind: 'work' }> =>
+                    stepItem.kind === 'work' && stepItem.side != null,
+                ),
+              repsCompleted,
+              skippedSetIndexes,
+              recommendation: firstStep?.recommendation ?? item.programmed.recommendation ?? '',
+            });
+          });
+        });
+        const programLog: ProgramSessionLog = {
+          id: `${plan.programSession.programId}:${Date.now()}`,
+          programId: plan.programSession.programId,
+          completedAt: new Date().toISOString(),
+          week: plan.programSession.week,
+          sessionNumber: plan.programSession.sessionNumber,
+          dayId: plan.programSession.dayId,
+          dayLabel: plan.programSession.dayLabel,
+          optionalDay: plan.programSession.optionalDay,
+          durationActualSec: dur,
+          skippedExerciseIds,
+          exercises: exerciseLogs,
+        };
+        appendProgramLog(programLog);
+        if (!plan.programSession.optionalDay) {
+          advancePrimarySession();
+        }
+      }
       setStartedAt(null);
     }
-  }, [state.done, plan, startedAt, appendSession]);
+  }, [state.done, plan, startedAt, appendSession, state.steps, repLogByStep, appendProgramLog, advancePrimarySession]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -284,7 +363,7 @@ export function PlayerPage() {
     return (
       <div className="card">
         <h1>Plan not found</h1>
-        <button type="button" onClick={() => navigate('/')}>
+        <button type="button" onClick={() => navigate('/quick')}>
           Back
         </button>
       </div>
@@ -319,6 +398,35 @@ export function PlayerPage() {
   const animLoop = isWork;
   const repProgress = undefined;
   const animLoopMs = ex ? Math.max(400, Math.round(ex.tempoSecPerRep * 1000)) : undefined;
+  const homePath = plan.programSession ? '/' : '/quick';
+  const isProgramRepStep = !!(step?.kind === 'work' && step.reps != null && step.repRange);
+  const repChoices =
+    step?.kind === 'work' && step.repRange
+      ? Array.from(
+          new Set([
+            step.repRange.min,
+            step.repRange.min + 1,
+            step.repRange.min + 2,
+            step.repRange.max - 1,
+            step.repRange.max,
+          ]),
+        ).filter((value) => value >= step.repRange!.min && value <= step.repRange!.max)
+      : [];
+  const currentItemRepIndexes =
+    step?.kind === 'work'
+      ? state.steps
+          .map((stepItem, idx) => ({ stepItem, idx }))
+          .filter(
+            ({ stepItem }) =>
+              stepItem.kind === 'work' &&
+              stepItem.blockIndex === step.blockIndex &&
+              stepItem.itemIndex === step.itemIndex &&
+              stepItem.reps != null,
+          )
+          .map(({ idx }) => idx)
+      : [];
+  const currentItemLoggedReps = currentItemRepIndexes.map((idx) => repLogByStep[idx] ?? null);
+  const currentSetLoggedValue = repLogByStep[state.stepIndex];
 
   return (
     <div className="player">
@@ -380,16 +488,91 @@ export function PlayerPage() {
                 <h2 aria-live="polite">{currentExerciseName}</h2>
                 {step.reps != null ? (
                   <>
-                    <div className="big-counter" aria-live="polite">
-                      {step.reps} reps
-                    </div>
+                    <div className="big-counter" aria-live="polite">{step.reps} reps</div>
+                    {isProgramRepStep && (
+                      <div className="program-step-panel">
+                        <div className="program-step-grid">
+                          <div>
+                            <strong>Set</strong>
+                            <div className="muted">
+                              {step.setIndex ?? 1} / {step.totalSets ?? 1}
+                            </div>
+                          </div>
+                          <div>
+                            <strong>Load</strong>
+                            <div className="muted">{weightLabel(step.prescribedWeightLb)}</div>
+                          </div>
+                          <div>
+                            <strong>Target</strong>
+                            <div className="muted">
+                              {step.repRange?.min}-{step.repRange?.max} reps
+                            </div>
+                          </div>
+                          <div>
+                            <strong>Previous</strong>
+                            <div className="muted">{repLogLabel(step.previousReps ?? [])}</div>
+                          </div>
+                          <div>
+                            <strong>Today</strong>
+                            <div className="muted">{repLogLabel(currentItemLoggedReps)}</div>
+                          </div>
+                          <div>
+                            <strong>Next</strong>
+                            <div className="muted">{step.nextSessionTarget ?? 'Beat previous total'}</div>
+                          </div>
+                        </div>
+                        <div className="program-rep-buttons">
+                          {repChoices.map((choice) => (
+                            <button
+                              key={choice}
+                              type="button"
+                              className={choice === currentSetLoggedValue ? 'primary' : ''}
+                              onClick={() => {
+                                setRepLogByStep((prev) => ({ ...prev, [state.stepIndex]: choice }));
+                                dispatch({ type: 'completeWork' });
+                              }}
+                            >
+                              {choice}
+                            </button>
+                          ))}
+                          {step.repRange && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const plusValue = step.repRange!.max + 1;
+                                setRepLogByStep((prev) => ({ ...prev, [state.stepIndex]: plusValue }));
+                                dispatch({ type: 'completeWork' });
+                              }}
+                            >
+                              {step.repRange.max}+
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="danger"
+                            onClick={() => {
+                              setRepLogByStep((prev) => ({ ...prev, [state.stepIndex]: null }));
+                              dispatch({ type: 'completeWork' });
+                            }}
+                          >
+                            Skip set
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="muted">Estimated {fmtTime(step.durationSec ?? 0)}</div>
                     <button
                       type="button"
                       className="primary big"
-                      onClick={() => dispatch({ type: 'completeWork' })}
+                      onClick={() => {
+                        if (isProgramRepStep) {
+                          const fallback = currentSetLoggedValue ?? step.reps ?? step.repRange?.min ?? 0;
+                          setRepLogByStep((prev) => ({ ...prev, [state.stepIndex]: fallback }));
+                        }
+                        dispatch({ type: 'completeWork' });
+                      }}
                     >
-                      Done
+                      {isProgramRepStep ? 'Log and done' : 'Done'}
                     </button>
                   </>
                 ) : (
@@ -437,7 +620,7 @@ export function PlayerPage() {
             <h2>Workout complete</h2>
             <p className="muted">Nice work.</p>
             <div className="row">
-              <button type="button" onClick={() => navigate('/')}>
+              <button type="button" onClick={() => navigate(homePath)}>
                 Home
               </button>
               <button

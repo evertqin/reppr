@@ -72,7 +72,7 @@ export function ConfigPage() {
 
   return (
     <div className="card">
-      <h1>Build a workout</h1>
+      <h1>Quick Workout</h1>
 
       <div className="field">
         <label htmlFor="duration">

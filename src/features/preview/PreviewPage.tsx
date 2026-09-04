@@ -8,6 +8,12 @@ import { ExerciseAnimation } from '../../animation/registry';
 import type { Exercise, PlanBlock, PlanItem, WorkoutPlan } from '../../domain/types';
 
 function fmtScheme(item: PlanItem, exercise: Exercise | undefined): string {
+  if (item.programmed) {
+    const weight = item.programmed.prescribedWeightLb > 0
+      ? `${item.programmed.prescribedWeightLb} lb each`
+      : 'Bodyweight';
+    return `${weight} · ${item.scheme.sets} × ${item.programmed.repRange.min}-${item.programmed.repRange.max} reps`;
+  }
   const s = item.scheme;
   const sideNote = exercise?.unilateral ? ' each side' : '';
   if (s.kind === 'reps') {
@@ -43,12 +49,14 @@ export function PreviewPage() {
       <div className="card">
         <h1>Plan not found</h1>
         <p className="muted">The plan may have been removed.</p>
-        <button type="button" onClick={() => navigate('/')}>Back to builder</button>
+        <button type="button" onClick={() => navigate('/quick')}>Back to builder</button>
       </div>
     );
   }
 
   const totalSec = estimateDurationSec(plan, byId);
+  const backPath = plan.programSession ? '/' : '/quick';
+  const isProgramPlan = !!plan.programSession;
 
   const updateBlock = (blockId: string, updater: (b: PlanBlock) => PlanBlock) => {
     const blocks = plan.blocks.map((b) => (b.id === blockId ? updater(b) : b));
@@ -105,7 +113,7 @@ export function PreviewPage() {
           </div>
         </div>
         <div className="row">
-          <button type="button" onClick={() => navigate('/')}>
+          <button type="button" onClick={() => navigate(backPath)}>
             Back
           </button>
           <button type="button" className="primary" onClick={() => navigate(`/play/${plan.id}`)}>
@@ -141,6 +149,18 @@ export function PreviewPage() {
                   <div className="plan-meta">
                     <div className="plan-name">{ex?.name ?? item.exerciseId}</div>
                     <div className="muted">{fmtScheme(item, ex)}</div>
+                    {item.programmed && (
+                      <>
+                        <div className="muted">
+                          Last time: {item.programmed.previousReps.length > 0
+                            ? item.programmed.previousReps.join(' / ')
+                            : 'No previous data'}
+                        </div>
+                        <div className="muted">
+                          Today&apos;s goal: {item.programmed.nextSessionTarget ?? 'Beat previous total'}
+                        </div>
+                      </>
+                    )}
                     {ex && (ex.instructions.length > 0 || ex.cues.length > 0) && (
                       <details className="how-to">
                         <summary>How to do it</summary>
@@ -157,34 +177,36 @@ export function PreviewPage() {
                       </details>
                     )}
                   </div>
-                  <div className="row">
-                    <button
-                      type="button"
-                      aria-label="Move up"
-                      disabled={idx === 0}
-                      onClick={() => moveItem(block.id, item.id, -1)}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Move down"
-                      disabled={idx === block.items.length - 1}
-                      onClick={() => moveItem(block.id, item.id, 1)}
-                    >
-                      ↓
-                    </button>
-                    <button type="button" onClick={() => swapItem(block.id, item.id)}>
-                      Swap
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => removeItem(block.id, item.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  {!isProgramPlan && (
+                    <div className="row">
+                      <button
+                        type="button"
+                        aria-label="Move up"
+                        disabled={idx === 0}
+                        onClick={() => moveItem(block.id, item.id, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Move down"
+                        disabled={idx === block.items.length - 1}
+                        onClick={() => moveItem(block.id, item.id, 1)}
+                      >
+                        ↓
+                      </button>
+                      <button type="button" onClick={() => swapItem(block.id, item.id)}>
+                        Swap
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => removeItem(block.id, item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}

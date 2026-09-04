@@ -74,6 +74,28 @@ export type Scheme =
   | { kind: 'reps'; reps: number; sets: number; restSec: number }
   | { kind: 'time'; workSec: number; sets: number; restSec: number };
 
+export interface ProgrammedItemMeta {
+  mode: 'hypertrophy';
+  programId: string;
+  week: number;
+  dayId: string;
+  dayLabel: string;
+  prescribedWeightLb: number;
+  repRange: { min: number; max: number };
+  previousReps: number[];
+  recommendation?: string;
+  nextSessionTarget?: string;
+}
+
+export interface ProgramSessionRef {
+  programId: string;
+  week: number;
+  sessionNumber: number;
+  dayId: string;
+  dayLabel: string;
+  optionalDay: boolean;
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -98,6 +120,7 @@ export interface PlanItem {
   exerciseId: string;
   scheme: Scheme;
   notes?: string;
+  programmed?: ProgrammedItemMeta;
 }
 
 export interface PlanBlock {
@@ -132,6 +155,7 @@ export interface WorkoutPlan {
   config: ConfigInput;
   blocks: PlanBlock[];
   estimatedDurationSec: number;
+  programSession?: ProgramSessionRef;
 }
 
 export interface CompletedSession {
